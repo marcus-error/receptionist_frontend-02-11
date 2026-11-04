@@ -1,0 +1,669 @@
+/* SIP Trunk Configuration Styling — Unified Design System */
+
+.sip-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 8px 0 48px 0;
+}
+
+/* Header */
+.sip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 4px;
+}
+
+.sip-header-info h1 {
+  font-family: var(--font-heading, 'Inter', sans-serif);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--heading);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.sip-header-info p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.sip-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+
+.sip-status-pill.connected {
+  background: var(--badge-green-bg);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: var(--badge-green-fg);
+}
+
+.sip-status-pill.disconnected {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+}
+
+.sip-status-pill .status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sip-status-pill.connected .status-dot {
+  box-shadow: 0 0 10px #16a34a;
+  animation: sip-pulse-dot 2s infinite ease-in-out;
+}
+
+@keyframes sip-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.25); }
+}
+
+/* Metrics / Quick Stats Cards */
+.sip-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .sip-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .sip-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sip-metric-card {
+  background: var(--panel-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sip-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.12);
+}
+
+.sip-metric-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+}
+
+.sip-metric-icon.accent {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.25);
+  color: var(--accent);
+}
+
+.sip-metric-icon.blue {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #2563eb;
+}
+
+.sip-metric-icon.purple {
+  background: rgba(147, 51, 234, 0.1);
+  border-color: rgba(147, 51, 234, 0.25);
+  color: #9333ea;
+}
+
+.sip-metric-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sip-metric-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sip-metric-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sip-metric-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Main Form Card */
+.sip-card {
+  background: var(--panel-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: var(--card-shadow);
+  position: relative;
+}
+
+.sip-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sip-card-header h2 {
+  font-family: var(--font-heading, 'Inter', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--heading);
+  margin-bottom: 4px;
+}
+
+.sip-card-header p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.sip-sync-tag {
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--line-light);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.sip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.sip-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sip-form-group label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sip-form-group label .required {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.sip-input {
+  width: 100%;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--fg);
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.sip-input:focus {
+  border-color: var(--accent);
+  background: var(--panel);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.sip-input::placeholder {
+  color: var(--faint);
+}
+
+.sip-input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .sip-input-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sip-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sip-password-wrapper .sip-input {
+  padding-right: 50px;
+}
+
+.sip-password-toggle {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.sip-password-toggle:hover {
+  color: var(--fg);
+}
+
+.sip-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.sip-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px 28px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+}
+
+.sip-btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.sip-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sip-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--line-light);
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sip-btn-secondary:hover:not(:disabled) {
+  background: var(--line);
+  border-color: var(--line);
+}
+
+.sip-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Alert Boxes */
+.sip-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin-top: 18px;
+}
+
+.sip-alert.success {
+  background: var(--badge-green-bg);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: var(--badge-green-fg);
+}
+
+.sip-alert.error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+}
+
+.sip-alert.info {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+
+/* Secondary Panels Grid (Integration & Features) */
+.sip-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 840px) {
+  .sip-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sip-panel {
+  background: var(--panel-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: var(--card-shadow);
+}
+
+.sip-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--heading);
+  margin-bottom: 8px;
+}
+
+.sip-panel-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  line-height: 1.45;
+}
+
+.sip-copy-box {
+  display: flex;
+  align-items: center;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 4px 6px 4px 12px;
+  gap: 8px;
+}
+
+.sip-copy-text {
+  font-family: monospace;
+  font-size: 12.5px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sip-copy-btn {
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sip-copy-btn:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.sip-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sip-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.sip-feature-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* End-to-End System Testing Panel */
+.sip-e2e-card {
+  background: var(--panel-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sip-e2e-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sip-e2e-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sip-btn-e2e {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  transition: all 0.2s ease;
+}
+
+.sip-btn-e2e:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+}
+
+.sip-btn-e2e:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sip-e2e-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.sip-e2e-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.sip-e2e-step-item.passed {
+  border-left: 4px solid #16a34a;
+  background: rgba(22, 163, 74, 0.05);
+}
+
+.sip-e2e-step-item.failed {
+  border-left: 4px solid #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.sip-e2e-step-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.sip-e2e-step-item.passed .sip-e2e-step-icon {
+  background: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+}
+
+.sip-e2e-step-item.failed .sip-e2e-step-icon {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.sip-e2e-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.sip-e2e-step-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.sip-e2e-latency-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--line);
+  color: var(--fg);
+}
+
+.sip-e2e-step-msg {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.sip-e2e-step-detail {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+/* Checkbox Grid for Reference Account Options */
+.sip-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 20px;
+  padding: 10px 0;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .sip-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sip-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--fg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sip-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+

@@ -1,0 +1,262 @@
+/* Dynamic Theme Overrides for react-big-calendar */
+
+.calendar-container {
+  font-family: var(--font-body);
+  color: var(--fg);
+}
+
+.rbc-calendar {
+  color: var(--fg) !important;
+  background: transparent !important;
+}
+
+/* Base views container */
+.rbc-month-view, 
+.rbc-time-view, 
+.rbc-agenda-view {
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  background: var(--panel) !important;
+}
+
+/* Headers (Day names: SUN, MON, TUE...) */
+.rbc-header {
+  padding: 12px 0 !important;
+  font-weight: 700 !important;
+  color: var(--heading) !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-left: 1px solid var(--line) !important;
+  text-transform: uppercase;
+  font-size: 0.8rem !important;
+  letter-spacing: 0.05em;
+  background-color: var(--line-light) !important;
+}
+
+.rbc-header + .rbc-header {
+  border-left: 1px solid var(--line) !important;
+}
+
+/* Month Grid Lines & Cells */
+.rbc-month-row {
+  border-top: 1px solid var(--line) !important;
+}
+
+.rbc-day-bg {
+  border-left: 1px solid var(--line) !important;
+  transition: background-color 0.2s ease;
+}
+
+.rbc-day-bg:hover {
+  background-color: var(--line-light);
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid var(--line) !important;
+}
+
+.rbc-off-range-bg {
+  background-color: var(--line-light) !important;
+  opacity: 0.5;
+}
+
+.rbc-today {
+  background-color: rgba(2, 132, 199, 0.12) !important;
+}
+
+.rbc-date-cell {
+  padding: 8px 12px !important;
+  font-weight: 700 !important;
+  color: var(--heading) !important;
+  font-size: 0.9rem !important;
+  text-align: right;
+}
+
+.rbc-date-cell a, 
+.rbc-date-cell button,
+.rbc-date-cell.rbc-now {
+  color: var(--heading) !important;
+  font-weight: 700 !important;
+}
+
+.rbc-off-range .rbc-button-link {
+  color: var(--muted) !important;
+  opacity: 0.7;
+}
+
+/* Toolbar Controls */
+.rbc-toolbar {
+  margin-bottom: 20px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.rbc-toolbar button {
+  border: 1px solid var(--line) !important;
+  color: var(--heading) !important;
+  background: var(--line-light) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 8px 16px !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease-in-out !important;
+  cursor: pointer !important;
+}
+
+.rbc-toolbar button:hover {
+  background: var(--line) !important;
+  color: var(--heading) !important;
+}
+
+.rbc-toolbar button:active, 
+.rbc-toolbar button.rbc-active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+  font-weight: 700 !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.rbc-toolbar button:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.3) !important;
+}
+
+.rbc-toolbar .rbc-toolbar-label {
+  font-family: var(--font-heading) !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: var(--heading) !important;
+}
+
+/* Time Grid Views (Week / Day) */
+.rbc-time-header {
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.rbc-time-content {
+  border-top: 1px solid var(--line) !important;
+}
+
+.rbc-time-header-content, 
+.rbc-time-content > * + * {
+  border-left: 1px solid var(--line) !important;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.rbc-label {
+  color: var(--muted) !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px solid var(--line) !important;
+}
+
+.rbc-current-time-indicator {
+  background-color: var(--primary) !important;
+  height: 2px !important;
+}
+
+/* Agenda View */
+.rbc-agenda-view table.rbc-agenda-table {
+  border: none !important;
+  color: var(--fg) !important;
+}
+
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  border-top: 1px solid var(--line) !important;
+  padding: 12px 16px !important;
+  color: var(--fg) !important;
+}
+
+.rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  border-bottom: 1px solid var(--line) !important;
+  color: var(--heading) !important;
+  padding: 12px 16px !important;
+  font-weight: 700 !important;
+}
+
+/* Overlay Popups ("+ X more") */
+.rbc-overlay {
+  background-color: var(--panel) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-md) !important;
+  padding: 10px !important;
+  color: var(--heading) !important;
+}
+
+.rbc-overlay-header {
+  border-bottom: 1px solid var(--line) !important;
+  margin-bottom: 8px !important;
+  padding-bottom: 4px !important;
+  font-weight: 700 !important;
+  color: var(--heading) !important;
+}
+
+.rbc-show-more {
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+  background: transparent !important;
+  font-size: 0.8rem !important;
+}
+
+.rbc-show-more:hover {
+  text-decoration: underline !important;
+}
+
+/* ================= CALENDAR RESPONSIVE DESIGN ================= */
+
+@media (max-width: 768px) {
+  .calendar-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+  .rbc-calendar {
+    min-width: 580px;
+  }
+  .rbc-toolbar {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+  .rbc-toolbar .rbc-toolbar-label {
+    text-align: center !important;
+    font-size: 1.1rem !important;
+    margin: 4px 0 !important;
+  }
+  .rbc-btn-group {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  .rbc-btn-group button {
+    flex: 1 !important;
+    padding: 6px 10px !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .rbc-calendar {
+    min-width: 500px;
+  }
+  .rbc-header {
+    font-size: 0.75rem !important;
+    padding: 8px 0 !important;
+  }
+  .rbc-date-cell {
+    padding: 4px 6px !important;
+    font-size: 0.8rem !important;
+  }
+}

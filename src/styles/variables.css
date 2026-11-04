@@ -1,0 +1,41 @@
+:root, [data-theme="light"] {
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --fg: #0f172a;
+  --muted: #475569;
+  --faint: #94a3b8;
+  --line: #e2e8f0;
+  --accent: #0284c7;
+  --accent2: #2563eb;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --lp-font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --lp-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --color-primary: #0284c7;
+  --color-primary-hover: #0369a1;
+  --color-bg: #f4f6f9;
+  --color-panel: #ffffff;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-border: #e2e8f0;
+  --color-sidebar: #0b192c;
+}
+
+[data-theme="dark"] {
+  --bg: #090d16;
+  --panel: #0f172a;
+  --fg: #f8fafc;
+  --muted: #94a3b8;
+  --faint: #64748b;
+  --line: rgba(255, 255, 255, 0.12);
+  --accent: #38bdf8;
+  --accent2: #2563eb;
+  --color-primary: #0284c7;
+  --color-primary-hover: #0369a1;
+  --color-bg: #090d16;
+  --color-panel: #0f172a;
+  --color-text: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-sidebar: #070b14;
+}

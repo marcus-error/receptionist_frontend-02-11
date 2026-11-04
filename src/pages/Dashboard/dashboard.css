@@ -1,0 +1,670 @@
+/* ==========================================================================
+   AI RECEPTIONIST DASHBOARD STYLES — DYNAMIC THEME SYSTEM (LIGHT & DARK)
+   ========================================================================== */
+
+.dash-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 0 32px 0;
+  box-sizing: border-box;
+}
+
+/* Custom Scrollbar for inner lists & tables */
+.dash-table-wrapper::-webkit-scrollbar,
+.dash-schedule-list::-webkit-scrollbar,
+.dash-staff-list::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.dash-table-wrapper::-webkit-scrollbar-track,
+.dash-schedule-list::-webkit-scrollbar-track,
+.dash-staff-list::-webkit-scrollbar-track {
+  background: var(--line-light);
+  border-radius: 4px;
+}
+
+.dash-table-wrapper::-webkit-scrollbar-thumb,
+.dash-schedule-list::-webkit-scrollbar-thumb,
+.dash-staff-list::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+
+/* ================= Top Header ================= */
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  width: 100%;
+}
+
+.dash-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-header-title h1 {
+  font-family: var(--font-heading, 'Inter', sans-serif);
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 800;
+  color: var(--heading);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.dash-header-title p {
+  color: var(--muted);
+  font-size: clamp(12px, 0.95vw, 13.5px);
+  margin: 0;
+}
+
+.dash-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dash-btn-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.25);
+  white-space: nowrap;
+}
+
+.dash-btn-live:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.dash-btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--line-light);
+  color: var(--heading);
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.dash-btn-refresh:hover:not(:disabled) {
+  background: var(--line);
+  color: var(--heading);
+}
+
+/* ================= System Live Integrations Health Strip ================= */
+.dash-status-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .dash-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 580px) {
+  .dash-status-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dash-status-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.2s ease;
+  min-width: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-status-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.dash-status-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dash-status-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.dash-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dash-status-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-status-detail {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ================= Badges ================= */
+.dash-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.dash-badge.green {
+  background: var(--badge-green-bg);
+  border: 1px solid rgba(22, 101, 52, 0.2);
+  color: var(--badge-green-fg);
+}
+
+.dash-badge.red {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+}
+
+.dash-badge.blue {
+  background: var(--badge-blue-bg);
+  border: 1px solid rgba(7, 89, 133, 0.2);
+  color: var(--badge-blue-fg);
+}
+
+.dash-badge.yellow {
+  background: var(--badge-yellow-bg);
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  color: var(--badge-yellow-fg);
+}
+
+.dash-badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ================= KPI Stats Cards Grid ================= */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 1300px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 440px) {
+  .dash-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dash-kpi-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  min-width: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+}
+
+.dash-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dash-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-kpi-icon {
+  font-size: 14px;
+}
+
+.dash-kpi-value {
+  font-family: var(--font-heading, 'Inter', sans-serif);
+  font-size: clamp(20px, 1.6vw, 24px);
+  font-weight: 800;
+  color: var(--heading);
+  line-height: 1.1;
+}
+
+.dash-kpi-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ================= Quick Actions Toolbar ================= */
+.dash-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dash-action-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.dash-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.dash-action-btn:hover {
+  background: var(--line);
+  border-color: var(--primary);
+  color: var(--heading);
+}
+
+/* ================= Main Dashboard Responsive 2-Column Grid ================= */
+.dash-main-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .dash-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ================= Panel Card ================= */
+.dash-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dash-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-panel-header h3 {
+  font-family: var(--font-heading, 'Inter', sans-serif);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--heading);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.dash-panel-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.dash-panel-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* ================= Table Styling with Responsive Scroll ================= */
+.dash-table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 275px;
+  scrollbar-width: thin;
+  border-radius: var(--radius-sm);
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12.5px;
+}
+
+.dash-table th {
+  position: sticky;
+  top: 0;
+  background: var(--line-light);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.dash-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-light);
+  color: var(--fg);
+}
+
+.dash-table tr:last-child td {
+  border-bottom: none;
+}
+
+.dash-table tr:hover td {
+  background: var(--line-light);
+}
+
+.dash-caller-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dash-caller-name {
+  font-weight: 700;
+  color: var(--heading);
+  font-size: 12.5px;
+}
+
+.dash-caller-phone {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ================= Schedule List with Responsive Scroll ================= */
+.dash-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 275px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.dash-schedule-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  gap: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.dash-schedule-item:hover {
+  border-color: var(--primary);
+}
+
+.dash-schedule-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--badge-blue-bg);
+  border: 1px solid rgba(7, 89, 133, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  min-width: 64px;
+  flex-shrink: 0;
+}
+
+.dash-schedule-time .time-val {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--badge-blue-fg);
+}
+
+.dash-schedule-time .date-val {
+  font-size: 9.5px;
+  color: var(--badge-blue-fg);
+  opacity: 0.8;
+}
+
+.dash-schedule-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.dash-schedule-patient {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-schedule-meta {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ================= Staff List with Responsive Scroll ================= */
+.dash-staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 275px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.dash-staff-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--line-light);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  gap: 10px;
+}
+
+.dash-staff-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dash-staff-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--badge-blue-bg);
+  border: 1px solid rgba(7, 89, 133, 0.2);
+  color: var(--badge-blue-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.dash-staff-names {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dash-staff-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-staff-dept {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-staff-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dash-staff-load {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--panel);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+/* ================= Empty State ================= */
+.dash-empty-state {
+  text-align: center;
+  padding: 24px 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
