@@ -197,6 +197,33 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
     return [];
   }, [conversationHistory, dbCall?.messages, dbCall?.created_at]);
 
+  // Derive latest real customer speech and AI response from live state or dialogue stream
+  const latestCallerSaid = useMemo(() => {
+    const raw = callData?.caller_said || "";
+    if (raw && !["Listening to customer on phone line...", "Waiting for speech...", "Listening to caller..."].includes(raw)) {
+      return raw;
+    }
+    const lastCust = [...displayHistory].reverse().find(m => m.role === "customer" || m.speaker === "customer");
+    if (lastCust?.text) return lastCust.text;
+    if (dbCall?.caller_said && !["Waiting for speech...", "Listening to caller..."].includes(dbCall.caller_said)) {
+      return dbCall.caller_said;
+    }
+    return isLive ? "Listening to caller..." : "";
+  }, [callData?.caller_said, displayHistory, dbCall?.caller_said, isLive]);
+
+  const latestAiResponse = useMemo(() => {
+    const raw = callData?.ai_response || "";
+    if (raw && !["Answering with AI Receptionist greeting...", "AI ready...", "Generating response..."].includes(raw)) {
+      return raw;
+    }
+    const lastAi = [...displayHistory].reverse().find(m => m.role === "assistant" || m.speaker === "ai");
+    if (lastAi?.text) return lastAi.text;
+    if (dbCall?.ai_response && !["AI ready...", "Generating response..."].includes(dbCall.ai_response)) {
+      return dbCall.ai_response;
+    }
+    return isLive ? "Generating response..." : "";
+  }, [callData?.ai_response, displayHistory, dbCall?.ai_response, isLive]);
+
   // Timer for active call duration
   useEffect(() => {
     let interval;
@@ -563,8 +590,8 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
                   </span>
                 )}
               </div>
-              <p className="speech-box-content">
-                "{callData?.caller_said || (isLive ? "Listening to caller..." : (dbCall?.caller_said || "Waiting for speech..."))}"
+              <p className="speech-box-content" style={!latestCallerSaid ? { opacity: 0.65, fontStyle: "italic" } : undefined}>
+                {latestCallerSaid ? `"${latestCallerSaid}"` : (isLive ? "Listening to caller..." : "No speech recorded yet")}
               </p>
             </div>
 
@@ -581,8 +608,8 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
                   </span>
                 )}
               </div>
-              <p className="speech-box-content">
-                "{callData?.ai_response || (isLive ? "Generating response..." : (dbCall?.ai_response || "AI ready..."))}"
+              <p className="speech-box-content" style={!latestAiResponse ? { opacity: 0.65, fontStyle: "italic" } : undefined}>
+                {latestAiResponse ? `"${latestAiResponse}"` : (isLive ? "Generating response..." : "AI Receptionist ready")}
               </p>
             </div>
 

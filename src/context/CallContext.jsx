@@ -521,8 +521,8 @@ export function CallProvider({ children }) {
             return {
               call_sid: event.call_id,
               status: "in-progress",
-              caller_said: event.role === "customer" ? event.text : "Listening to caller...",
-              ai_response: event.role === "assistant" ? event.text : "AI ready...",
+              caller_said: event.role === "customer" ? event.text : "",
+              ai_response: event.role === "assistant" ? event.text : "",
               phase: event.role === "customer" ? (event.is_partial ? "listening" : "processing") : "speaking"
             };
           }
