@@ -576,8 +576,6 @@ export default function Voice() {
           >
             <option value="en-IN">English (India) - en-IN</option>
             <option value="en-US">English (US) - en-US</option>
-            <option value="ta-IN">Tamil - ta-IN</option>
-            <option value="hi-IN">Hindi - hi-IN</option>
           </select>
         </div>
       </div>

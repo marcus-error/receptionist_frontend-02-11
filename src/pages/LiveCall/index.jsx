@@ -197,32 +197,56 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
     return [];
   }, [conversationHistory, dbCall?.messages, dbCall?.created_at]);
 
+  const isPlaceholderText = (t) => {
+    if (!t || typeof t !== "string") return true;
+    const clean = t.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim().toLowerCase();
+    if (!clean || clean.length < 2) return true;
+    return [
+      "waiting for speech...", "waiting for speech",
+      "listening to customer on phone line...", "listening to caller...", "listening...",
+      "ai ready...", "ai ready", "generating response...",
+      "answering with ai receptionist greeting..."
+    ].includes(clean);
+  };
+
   // Derive latest real customer speech and AI response from live state or dialogue stream
   const latestCallerSaid = useMemo(() => {
-    const raw = callData?.caller_said || "";
-    if (raw && !["Listening to customer on phone line...", "Waiting for speech...", "Listening to caller..."].includes(raw)) {
-      return raw;
+    const raw = (callData?.caller_said || "").trim();
+    if (raw && !isPlaceholderText(raw)) {
+      return raw.replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
     }
-    const lastCust = [...displayHistory].reverse().find(m => m.role === "customer" || m.speaker === "customer");
-    if (lastCust?.text) return lastCust.text;
-    if (dbCall?.caller_said && !["Waiting for speech...", "Listening to caller..."].includes(dbCall.caller_said)) {
-      return dbCall.caller_said;
+    const lastCust = [...displayHistory].reverse().find(m => 
+      (m.role === "customer" || m.speaker === "customer" || m.role === "user") && 
+      m.text && 
+      !isPlaceholderText(m.text)
+    );
+    if (lastCust?.text) {
+      return String(lastCust.text).replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
     }
-    return isLive ? "Listening to caller..." : "";
-  }, [callData?.caller_said, displayHistory, dbCall?.caller_said, isLive]);
+    if (dbCall?.caller_said && !isPlaceholderText(dbCall.caller_said)) {
+      return String(dbCall.caller_said).replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
+    }
+    return "";
+  }, [callData?.caller_said, displayHistory, dbCall?.caller_said]);
 
   const latestAiResponse = useMemo(() => {
-    const raw = callData?.ai_response || "";
-    if (raw && !["Answering with AI Receptionist greeting...", "AI ready...", "Generating response..."].includes(raw)) {
-      return raw;
+    const raw = (callData?.ai_response || "").trim();
+    if (raw && !isPlaceholderText(raw)) {
+      return raw.replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
     }
-    const lastAi = [...displayHistory].reverse().find(m => m.role === "assistant" || m.speaker === "ai");
-    if (lastAi?.text) return lastAi.text;
-    if (dbCall?.ai_response && !["AI ready...", "Generating response..."].includes(dbCall.ai_response)) {
-      return dbCall.ai_response;
+    const lastAi = [...displayHistory].reverse().find(m => 
+      (m.role === "assistant" || m.speaker === "ai" || m.role === "model") && 
+      m.text && 
+      !isPlaceholderText(m.text)
+    );
+    if (lastAi?.text) {
+      return String(lastAi.text).replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
     }
-    return isLive ? "Generating response..." : "";
-  }, [callData?.ai_response, displayHistory, dbCall?.ai_response, isLive]);
+    if (dbCall?.ai_response && !isPlaceholderText(dbCall.ai_response)) {
+      return String(dbCall.ai_response).replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
+    }
+    return "";
+  }, [callData?.ai_response, displayHistory, dbCall?.ai_response]);
 
   // Timer for active call duration
   useEffect(() => {
@@ -650,14 +674,19 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
                   <span className="analysis-label">
                     <span className="analysis-icon">🎯</span> Intent
                   </span>
-                  <Badge color="blue">{callData?.intent || dbCall?.intent || "Appointment Booking"}</Badge>
+                  <Badge color="blue">{callData?.intent || dbCall?.intent || "General Inquiry"}</Badge>
                 </div>
 
                 <div className="analysis-row">
                   <span className="analysis-label">
                     <span className="analysis-icon">😊</span> Emotion
                   </span>
-                  <Badge color="green">{callData?.emotion || dbCall?.emotion || "Neutral — 91%"}</Badge>
+                  <Badge color="green">{
+                    (() => {
+                      const emo = callData?.emotion || dbCall?.emotion;
+                      return (emo && !emo.includes("91%")) ? emo : "Neutral";
+                    })()
+                  }</Badge>
                 </div>
 
                 <div className="analysis-row">
@@ -671,8 +700,16 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
                   <span className="analysis-label">
                     <span className="analysis-icon">📚</span> RAG Source
                   </span>
-                  <span className="rag-pill" title={callData?.rag_source || dbCall?.rag_source || "legal-services.pdf"}>
-                    {callData?.rag_source || dbCall?.rag_source || "legal-services.pdf"}
+                  <span className="rag-pill" title={
+                    (() => {
+                      const src = callData?.rag_source || dbCall?.rag_source;
+                      return (src && !src.includes("legal-services")) ? src : "Active Knowledge Base";
+                    })()
+                  }>
+                    {(() => {
+                      const src = callData?.rag_source || dbCall?.rag_source;
+                      return (src && !src.includes("legal-services")) ? src : "Active Knowledge Base";
+                    })()}
                   </span>
                 </div>
               </div>

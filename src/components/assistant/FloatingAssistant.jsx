@@ -190,10 +190,7 @@ export default function FloatingAssistant({ assistantName: propAssistantName, or
       if (data.quick_actions && data.quick_actions.length > 0) {
         setQuickActions(data.quick_actions);
       }
-      if (data.language) {
-        const langMap = { ta: "ta-IN", tanglish: "ta-IN", ta_mix: "ta-IN", hi: "hi-IN", en: "en-IN" };
-        if (langMap[data.language]) setSttLang(langMap[data.language]);
-      }
+      setSttLang("en-IN");
     } catch (err) {
       console.error("Chat message error:", err);
       setMessages((prev) => [
@@ -655,11 +652,7 @@ export default function FloatingAssistant({ assistantName: propAssistantName, or
         console.warn("[VOICE_WARNING] TTS pre-fetch failed, will fallback:", ttsErr);
       }
 
-      // Update language if changed
-      if (responseLang) {
-        const langMap = { ta: "ta-IN", tanglish: "ta-IN", ta_mix: "ta-IN", hi: "hi-IN", en: "en-IN" };
-        if (langMap[responseLang]) setSttLang(langMap[responseLang]);
-      }
+      setSttLang("en-IN");
 
       // STEP 4: Play audio (using pre-fetched blob if available — no extra round trip)
       playAiVoice(responseText, preFetchedBlobUrl);
