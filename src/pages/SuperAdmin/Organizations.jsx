@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api.js";
 import Badge from "../../components/ui/Badge.jsx";
-import { ShieldCheck, Building2, Eye, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { ShieldCheck, Building2, Eye, CheckCircle, Clock, AlertTriangle, Trash2 } from "lucide-react";
 
 export default function OrganizationsManager() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedKycOrg, setSelectedKycOrg] = useState(null);
+
+  // Delete Organization State
+  const [deleteTargetOrg, setDeleteTargetOrg] = useState(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   const [newOrg, setNewOrg] = useState({
     name: "",
     organization_type: "Clinic / Dental",
@@ -64,6 +71,29 @@ export default function OrganizationsManager() {
       fetchOrganizations();
     } catch (err) {
       alert("Failed to update KYC status: " + err.message);
+    }
+  };
+
+  const handleDeleteOrganization = async (e) => {
+    if (e) e.preventDefault();
+    if (!deleteTargetOrg || deleting) return;
+
+    if (deleteConfirmName.trim() !== deleteTargetOrg.name.trim()) {
+      setDeleteError("Typed organization name does not match.");
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setDeleteError("");
+      await api.delete(`/organizations/${deleteTargetOrg.id}`);
+      setDeleteTargetOrg(null);
+      setDeleteConfirmName("");
+      await fetchOrganizations();
+    } catch (err) {
+      setDeleteError(err.message || "Failed to delete organization");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -136,7 +166,26 @@ export default function OrganizationsManager() {
             {organizations.map((org) => (
               <tr key={org.id}>
                 <td className="text-secondary" style={{ fontFamily: "monospace", opacity: 0.7 }}>#{org.id}</td>
-                <td style={{ fontWeight: "600" }}>{org.name}</td>
+                <td style={{ fontWeight: "600" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>{org.name}</span>
+                    {org.is_protected && (
+                      <span
+                        style={{
+                          fontSize: "10.5px",
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(59, 130, 246, 0.15)",
+                          color: "#60a5fa",
+                          border: "1px solid rgba(59, 130, 246, 0.3)"
+                        }}
+                        title="Protected Platform System Organization"
+                      >
+                        System
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="text-secondary" style={{ opacity: 0.8 }}>{org.organization_type}</td>
                 <td>{getKycBadge(org.kyc_status)}</td>
                 <td style={{ fontSize: "13px", color: "var(--muted)" }}>
@@ -163,6 +212,26 @@ export default function OrganizationsManager() {
                       className={`btn btn-sm ${org.status === "active" ? "danger" : "success"}`}
                     >
                       {org.status === "active" ? "Suspend" : "Activate"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeleteTargetOrg(org);
+                        setDeleteConfirmName("");
+                        setDeleteError("");
+                      }}
+                      className="btn btn-sm danger"
+                      style={{
+                        fontSize: "12px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        opacity: org.is_protected ? 0.4 : 1,
+                        cursor: org.is_protected ? "not-allowed" : "pointer"
+                      }}
+                      title={org.is_protected ? "Protected System Organization (Cannot be deleted)" : `Delete ${org.name}`}
+                      disabled={Boolean(org.is_protected)}
+                    >
+                      <Trash2 size={14} /> Delete
                     </button>
                   </div>
                 </td>
@@ -259,6 +328,120 @@ export default function OrganizationsManager() {
               <div className="modal-footer" style={{ marginTop: "10px" }}>
                 <button type="button" onClick={() => setSelectedKycOrg(null)} className="btn">
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Organization Confirmation Modal */}
+      {deleteTargetOrg && (
+        <div className="modal-overlay" onClick={() => !deleting && setDeleteTargetOrg(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "560px", border: "1px solid rgba(239, 68, 68, 0.35)" }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: "flex", alignItems: "center", gap: "8px", color: "#ef4444" }}>
+                <Trash2 size={20} color="#ef4444" /> Delete Organization: {deleteTargetOrg.name}
+              </h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => !deleting && setDeleteTargetOrg(null)}
+                disabled={deleting}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.25)", padding: "14px 16px", borderRadius: "10px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                  <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <div>
+                    <strong style={{ color: "#f87171", fontSize: "14px" }}>Warning: Permanent & Irreversible Action</strong>
+                    <p style={{ fontSize: "12.5px", color: "#fca5a5", marginTop: "6px", lineHeight: "1.5", margin: 0 }}>
+                      This action will permanently delete <strong>{deleteTargetOrg.name}</strong> and all associated tenant data across the entire platform. This operation cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: "#0f172a", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <div style={{ fontSize: "12px", color: "#94a3b8", fontWeight: "600", marginBottom: "6px" }}>
+                  The following data will be permanently wiped:
+                </div>
+                <ul style={{ fontSize: "12px", color: "#cbd5e1", paddingLeft: "18px", margin: 0, lineHeight: "1.6" }}>
+                  <li>Admin, staff, and user accounts, roles, and permissions</li>
+                  <li>Call records, audio recordings (.wav), and AI conversation transcripts</li>
+                  <li>Appointments, calendar sync configs, and reminder schedules</li>
+                  <li>Knowledge base documents, receptionist scripts, and vector store embeddings</li>
+                  <li>Inbound/outbound SIP telephony, Twilio, WhatsApp, CRM, and webhook configs</li>
+                  <li>Workflows, logs, leads, departments, and subscription data</li>
+                </ul>
+              </div>
+
+              <div>
+                <label style={{ fontSize: "12.5px", color: "#e2e8f0", display: "block", marginBottom: "6px" }}>
+                  To confirm permanent deletion, type the organization name: <strong style={{ color: "#ef4444" }}>{deleteTargetOrg.name}</strong>
+                </label>
+                <input
+                  type="text"
+                  placeholder={`Type "${deleteTargetOrg.name}" to confirm`}
+                  value={deleteConfirmName}
+                  onChange={(e) => {
+                    setDeleteConfirmName(e.target.value);
+                    if (deleteError) setDeleteError("");
+                  }}
+                  disabled={deleting}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: deleteConfirmName.trim() === deleteTargetOrg.name.trim() ? "1px solid #22c55e" : "1px solid rgba(239, 68, 68, 0.4)",
+                    background: "rgba(15, 23, 42, 0.8)",
+                    color: "#fff",
+                    fontSize: "13px"
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {deleteError && (
+                <div style={{ color: "#ef4444", fontSize: "12.5px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)", padding: "8px 12px", borderRadius: "6px" }}>
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="modal-footer" style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTargetOrg(null)}
+                  className="btn"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteOrganization}
+                  className="btn danger"
+                  disabled={deleteConfirmName.trim() !== deleteTargetOrg.name.trim() || deleting}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    opacity: (deleteConfirmName.trim() !== deleteTargetOrg.name.trim() || deleting) ? 0.5 : 1,
+                    cursor: (deleteConfirmName.trim() !== deleteTargetOrg.name.trim() || deleting) ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {deleting ? (
+                    <>
+                      <Clock size={14} className="spin" /> Deleting Organization...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} /> Permanently Delete
+                    </>
+                  )}
                 </button>
               </div>
             </div>
