@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import knowledgeService from "../../services/knowledge.service.js";
 import UploadKnowledgeModal from "../../components/modals/UploadKnowledgeModal.jsx";
 import ViewKnowledgeModal from "../../components/modals/ViewKnowledgeModal.jsx";
-import { BookOpen, Upload, Trash2, Search, Download, Eye, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import Badge from "../../components/ui/Badge.jsx";
+import { BookOpen, Upload, Trash2, Search, Download, Eye, Sparkles, CheckCircle2 } from "lucide-react";
 
 export default function SuperAdminRagUpload() {
   const [docs, setDocs] = useState([]);
@@ -125,27 +126,38 @@ export default function SuperAdminRagUpload() {
   };
 
   return (
-    <div style={{ padding: "24px", color: "#fff" }}>
+    <section id="super-admin-rag-upload" className="page active">
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+      <div className="header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-            <div style={{ background: "rgba(124, 104, 255, 0.15)", border: "1px solid rgba(124, 104, 255, 0.3)", borderRadius: "8px", padding: "8px", display: "flex" }}>
-              <Sparkles size={22} color="#a78bfa" />
+            <div
+              style={{
+                background: "rgba(124, 104, 255, 0.12)",
+                border: "1px solid rgba(124, 104, 255, 0.25)",
+                borderRadius: "8px",
+                padding: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <Sparkles size={22} color="#7c68ff" />
             </div>
-            <h1 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "#f8fafc" }}>
+            <h1 className="title" style={{ margin: 0, color: "var(--heading, #0f172a)" }}>
               Platform AI RAG Knowledge Upload
             </h1>
           </div>
-          <p style={{ margin: 0, color: "#94a3b8", fontSize: "14px", maxWidth: "680px" }}>
-            Upload and manage RAG documents that directly train the AI Assistant on both the 
-            <strong style={{ color: "#a78bfa" }}> Landing Page</strong> and 
-            <strong style={{ color: "#a78bfa" }}> Super Admin Dashboard</strong>.
+          <p className="subtitle" style={{ margin: 0, maxWidth: "680px" }}>
+            Upload and manage RAG documents that directly train the AI Assistant on both the{" "}
+            <strong style={{ color: "#7c68ff" }}>Landing Page</strong> and{" "}
+            <strong style={{ color: "#7c68ff" }}>Super Admin Dashboard</strong>.
           </p>
         </div>
 
         <button
           onClick={() => setIsUploadModalOpen(true)}
+          className="btn primary"
           style={{
             background: "linear-gradient(135deg, #7c68ff 0%, #6366f1 100%)",
             color: "#fff",
@@ -169,28 +181,31 @@ export default function SuperAdminRagUpload() {
 
       {/* RAG Knowledge Quick Dropzone Banner */}
       <div
+        className="card"
         style={{
-          background: "linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 27, 75, 0.5) 100%)",
+          background: "var(--panel-card, #ffffff)",
           border: "1px dashed rgba(124, 104, 255, 0.4)",
           borderRadius: "12px",
           padding: "28px 20px",
           textAlign: "center",
-          marginBottom: "24px"
+          marginBottom: "24px",
+          boxShadow: "var(--card-shadow)"
         }}
       >
-        <BookOpen size={40} color="#a78bfa" style={{ marginBottom: "10px" }} />
-        <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#f1f5f9", margin: "0 0 6px 0" }}>
+        <BookOpen size={40} color="#7c68ff" style={{ marginBottom: "10px" }} />
+        <h3 style={{ fontSize: "18px", fontWeight: "700", color: "var(--heading)", margin: "0 0 6px 0", fontFamily: "var(--font-heading)" }}>
           Train Landing & SuperAdmin AI Assistant
         </h3>
-        <p style={{ color: "#94a3b8", fontSize: "13.5px", maxWidth: "520px", margin: "0 auto 16px auto", lineHeight: "1.5" }}>
+        <p style={{ color: "var(--muted)", fontSize: "13.5px", maxWidth: "520px", margin: "0 auto 16px auto", lineHeight: "1.5" }}>
           Upload PDF manuals, feature guides, pricing documents, or company FAQs. The system automatically chunks and indexes vectors for real-time customer and super admin queries.
         </p>
         <button
           onClick={() => setIsUploadModalOpen(true)}
+          className="btn"
           style={{
-            background: "rgba(124, 104, 255, 0.2)",
-            color: "#c4b5fd",
-            border: "1px solid rgba(124, 104, 255, 0.4)",
+            background: "rgba(124, 104, 255, 0.12)",
+            color: "#7c68ff",
+            border: "1px solid rgba(124, 104, 255, 0.35)",
             borderRadius: "6px",
             padding: "8px 18px",
             fontWeight: "600",
@@ -206,7 +221,7 @@ export default function SuperAdminRagUpload() {
       <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1 }}>
-            <Search size={16} color="#64748b" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
+            <Search size={16} color="var(--muted, #64748b)" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
             <input
               type="text"
               placeholder="Search platform documents or extracted RAG context..."
@@ -215,22 +230,21 @@ export default function SuperAdminRagUpload() {
               style={{
                 width: "100%",
                 padding: "10px 12px 10px 38px",
-                background: "#0f172a",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                background: "var(--panel, #ffffff)",
+                border: "1px solid var(--line, #e2e8f0)",
                 borderRadius: "8px",
-                color: "#f8fafc",
+                color: "var(--fg, #0f172a)",
                 fontSize: "14px",
-                outline: "none"
+                outline: "none",
+                boxShadow: "var(--card-shadow)"
               }}
             />
           </div>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
+              className="btn"
               style={{
-                background: "#1e293b",
-                color: "#94a3b8",
-                border: "1px solid #334155",
                 borderRadius: "8px",
                 padding: "9px 16px",
                 fontSize: "13px",
@@ -250,60 +264,36 @@ export default function SuperAdminRagUpload() {
               alignItems: "center",
               justifyContent: "space-between",
               padding: "10px 16px",
-              background: "rgba(124, 104, 255, 0.12)",
-              border: "1px solid rgba(124, 104, 255, 0.3)",
+              background: "rgba(124, 104, 255, 0.1)",
+              border: "1px solid rgba(124, 104, 255, 0.25)",
               borderRadius: "8px"
             }}
           >
-            <span style={{ fontSize: "13px", fontWeight: "600", color: "#c4b5fd" }}>
+            <span style={{ fontSize: "13px", fontWeight: "600", color: "#7c68ff" }}>
               ✓ {selectedDocIds.length} of {docs.length} selected
             </span>
             <div style={{ display: "flex", gap: "8px" }}>
               <button
                 onClick={() => handleBulkToggleUsage("Active")}
                 disabled={isBulkUpdating}
-                style={{
-                  background: "#166534",
-                  color: "#86efac",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer"
-                }}
+                className="btn btn-sm success"
+                style={{ fontSize: "12px", fontWeight: "600" }}
               >
                 ⚡ Activate Selected
               </button>
               <button
                 onClick={() => handleBulkToggleUsage("Inactive")}
                 disabled={isBulkUpdating}
-                style={{
-                  background: "#334155",
-                  color: "#cbd5e1",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer"
-                }}
+                className="btn btn-sm"
+                style={{ fontSize: "12px", fontWeight: "600" }}
               >
                 ⏸️ Deactivate Selected
               </button>
               <button
                 onClick={handleBulkDelete}
                 disabled={isBulkDeleting}
-                style={{
-                  background: "#991b1b",
-                  color: "#fca5a5",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer"
-                }}
+                className="btn btn-sm danger"
+                style={{ fontSize: "12px", fontWeight: "600" }}
               >
                 {isBulkDeleting ? "Deleting..." : `🗑️ Delete (${selectedDocIds.length})`}
               </button>
@@ -313,17 +303,10 @@ export default function SuperAdminRagUpload() {
       </div>
 
       {/* Documents Data Table */}
-      <div
-        style={{
-          background: "#0f172a",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          borderRadius: "10px",
-          overflow: "hidden"
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13.5px" }}>
+      <div className="table">
+        <table>
           <thead>
-            <tr style={{ background: "#1e293b", color: "#94a3b8", borderBottom: "1px solid #334155" }}>
+            <tr>
               <th style={{ width: "42px", textAlign: "center", padding: "12px 8px" }}>
                 <input
                   type="checkbox"
@@ -333,25 +316,25 @@ export default function SuperAdminRagUpload() {
                   style={{ cursor: "pointer", accentColor: "#7c68ff" }}
                 />
               </th>
-              <th style={{ padding: "12px 14px", fontWeight: "600" }}>Document Title</th>
-              <th style={{ padding: "12px 14px", fontWeight: "600" }}>Format</th>
-              <th style={{ padding: "12px 14px", fontWeight: "600" }}>Scope</th>
-              <th style={{ padding: "12px 14px", fontWeight: "600" }}>Chunks</th>
-              <th style={{ padding: "12px 14px", fontWeight: "600" }}>AI Usage</th>
-              <th style={{ padding: "12px 14px", fontWeight: "600" }}>Status</th>
-              <th style={{ padding: "12px 14px", fontWeight: "600", textAlign: "right" }}>Actions</th>
+              <th>Document Title</th>
+              <th>Format</th>
+              <th>Scope</th>
+              <th>Chunks</th>
+              <th>AI Usage</th>
+              <th>Status</th>
+              <th style={{ textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
+                <td colSpan="8" style={{ textAlign: "center", padding: "36px", color: "var(--muted)" }}>
                   Loading Platform RAG knowledge base...
                 </td>
               </tr>
             ) : docs.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: "center", padding: "36px", color: "#94a3b8" }}>
+                <td colSpan="8" style={{ textAlign: "center", padding: "36px", color: "var(--muted)" }}>
                   No Platform RAG documents found. Click "+ Upload Platform RAG" above to add your first document.
                 </td>
               </tr>
@@ -362,8 +345,7 @@ export default function SuperAdminRagUpload() {
                   <tr
                     key={doc.id}
                     style={{
-                      borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-                      background: isSelected ? "rgba(124, 104, 255, 0.08)" : "transparent"
+                      backgroundColor: isSelected ? "rgba(124, 104, 255, 0.08)" : undefined
                     }}
                   >
                     <td style={{ textAlign: "center", padding: "12px 8px" }}>
@@ -374,13 +356,15 @@ export default function SuperAdminRagUpload() {
                         style={{ cursor: "pointer", accentColor: "#7c68ff" }}
                       />
                     </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: "600", color: "#f8fafc" }}>{doc.title}</div>
+                    <td>
+                      <div style={{ fontWeight: "600", color: isSelected ? "#7c68ff" : "var(--heading)" }}>
+                        {doc.title}
+                      </div>
                       {doc.content && (
                         <div
                           style={{
                             fontSize: "12px",
-                            color: "#64748b",
+                            color: "var(--muted)",
                             marginTop: "2px",
                             maxWidth: "320px",
                             whiteSpace: "nowrap",
@@ -392,11 +376,12 @@ export default function SuperAdminRagUpload() {
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: "12px 14px" }}>
+                    <td>
                       <span
                         style={{
-                          background: "#1e293b",
-                          color: "#cbd5e1",
+                          background: "var(--line-light)",
+                          color: "var(--fg)",
+                          border: "1px solid var(--line)",
                           padding: "2px 8px",
                           borderRadius: "4px",
                           fontSize: "11px",
@@ -407,13 +392,13 @@ export default function SuperAdminRagUpload() {
                         {doc.file_type || "TXT"}
                       </span>
                     </td>
-                    <td style={{ padding: "12px 14px" }}>
+                    <td>
                       <span
                         style={{
-                          background: "rgba(124, 104, 255, 0.15)",
-                          color: "#c4b5fd",
-                          border: "1px solid rgba(124, 104, 255, 0.3)",
-                          padding: "2px 8px",
+                          background: "rgba(124, 104, 255, 0.12)",
+                          color: "#7c68ff",
+                          border: "1px solid rgba(124, 104, 255, 0.25)",
+                          padding: "3px 9px",
                           borderRadius: "6px",
                           fontSize: "12px",
                           fontWeight: "600"
@@ -422,37 +407,23 @@ export default function SuperAdminRagUpload() {
                         Platform / Landing AI
                       </span>
                     </td>
-                    <td style={{ padding: "12px 14px", color: "#94a3b8" }}>{doc.chunks ?? 0}</td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span
-                        style={{
-                          background: doc.ai_usage === "Inactive" ? "#334155" : "#166534",
-                          color: doc.ai_usage === "Inactive" ? "#94a3b8" : "#86efac",
-                          padding: "3px 10px",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          fontWeight: "600"
-                        }}
-                      >
+                    <td style={{ color: "var(--muted)" }}>{doc.chunks ?? 0}</td>
+                    <td>
+                      <Badge color={doc.ai_usage === "Inactive" ? "gray" : "green"}>
                         {doc.ai_usage || "Active"}
-                      </span>
+                      </Badge>
                     </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span
-                        style={{
-                          color: doc.status === "Pending" ? "#fde047" : "#4ade80",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px"
-                        }}
-                      >
-                        <CheckCircle2 size={14} />
-                        {doc.status || "Indexed"}
-                      </span>
+                    <td>
+                      {doc.status === "Pending" ? (
+                        <Badge color="yellow">⏳ Pending</Badge>
+                      ) : (
+                        <Badge color="green">
+                          <CheckCircle2 size={13} style={{ marginRight: "3px" }} />
+                          {doc.status || "Indexed"}
+                        </Badge>
+                      )}
                     </td>
-                    <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                    <td style={{ textAlign: "right" }}>
                       <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
                         <button
                           onClick={async () => {
@@ -464,14 +435,10 @@ export default function SuperAdminRagUpload() {
                               alert("Failed to toggle status: " + err.message);
                             }
                           }}
+                          className="btn btn-sm"
                           style={{
-                            background: doc.ai_usage === "Active" ? "#334155" : "#1e293b",
-                            color: "#cbd5e1",
-                            border: "1px solid #475569",
-                            borderRadius: "6px",
-                            padding: "4px 10px",
                             fontSize: "12px",
-                            cursor: "pointer"
+                            padding: "4px 10px"
                           }}
                         >
                           {doc.ai_usage === "Active" ? "Deactivate" : "Activate"}
@@ -481,15 +448,8 @@ export default function SuperAdminRagUpload() {
                             setSelectedDocToView(doc);
                             setIsViewModalOpen(true);
                           }}
-                          style={{
-                            background: "#1e293b",
-                            color: "#cbd5e1",
-                            border: "1px solid #475569",
-                            borderRadius: "6px",
-                            padding: "4px 8px",
-                            fontSize: "12px",
-                            cursor: "pointer"
-                          }}
+                          className="btn btn-sm"
+                          style={{ padding: "4px 8px" }}
                           title="View document details"
                         >
                           <Eye size={14} />
@@ -502,15 +462,8 @@ export default function SuperAdminRagUpload() {
                               alert("Download failed: " + err.message);
                             }
                           }}
-                          style={{
-                            background: "#1e293b",
-                            color: "#cbd5e1",
-                            border: "1px solid #475569",
-                            borderRadius: "6px",
-                            padding: "4px 8px",
-                            fontSize: "12px",
-                            cursor: "pointer"
-                          }}
+                          className="btn btn-sm"
+                          style={{ padding: "4px 8px" }}
                           title="Download file"
                         >
                           <Download size={14} />
@@ -526,15 +479,8 @@ export default function SuperAdminRagUpload() {
                               }
                             }
                           }}
-                          style={{
-                            background: "#7f1d1d",
-                            color: "#fca5a5",
-                            border: "none",
-                            borderRadius: "6px",
-                            padding: "4px 8px",
-                            fontSize: "12px",
-                            cursor: "pointer"
-                          }}
+                          className="btn btn-sm danger"
+                          style={{ padding: "4px 8px" }}
                           title="Delete document"
                         >
                           <Trash2 size={14} />
@@ -563,6 +509,6 @@ export default function SuperAdminRagUpload() {
         onClose={() => setIsViewModalOpen(false)}
         doc={selectedDocToView}
       />
-    </div>
+    </section>
   );
 }

@@ -1,26 +1,27 @@
 import { useState, useMemo } from "react";
-import { Building2, Plus, Search, Filter, Edit3, Trash2, Users, CheckCircle2, XCircle } from "lucide-react";
+import { Building2, Plus, Search, Filter, Edit3, Trash2, Users, CheckCircle2, XCircle, UserPlus } from "lucide-react";
 import Badge from "../../components/ui/Badge.jsx";
 import useApi from "../../hooks/useApi.js";
 import useAuth from "../../hooks/useAuth.js";
 import departmentService from "../../services/department.service.js";
 import staffService from "../../services/staff.service.js";
 import AddDepartmentModal from "../../components/modals/AddDepartmentModal.jsx";
+import DepartmentStaffModal from "../../components/modals/DepartmentStaffModal.jsx";
 
 const STATUS_COLOR = { Active: "green", Inactive: "red" };
 
 export default function Departments() {
   const { user } = useAuth();
   const { data: departments, reload: reloadDepts, loading: loadingDepts } = useApi(departmentService.getAll, [], []);
-
   const { data: staffList } = useApi(staffService.getAll, [], []);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
+  const [selectedDeptForStaff, setSelectedDeptForStaff] = useState(null);
 
-  // Map staff count per department
+  // Map staff count per department from staff list fallback
   const staffCountMap = useMemo(() => {
     const map = {};
     if (Array.isArray(staffList)) {
@@ -69,14 +70,21 @@ export default function Departments() {
 
   const handleSaveDepartment = async (formData) => {
     try {
+      let savedDept = null;
       if (editingDept) {
-        await departmentService.update(editingDept.id, formData);
+        savedDept = await departmentService.update(editingDept.id, formData);
       } else {
-        await departmentService.create(formData);
+        savedDept = await departmentService.create(formData);
       }
       if (reloadDepts) reloadDepts();
       setIsModalOpen(false);
+      const isNew = !editingDept;
       setEditingDept(null);
+
+      // Requirement 3: After successful department creation, allow the admin to add multiple staff members
+      if (isNew && savedDept?.id) {
+        setSelectedDeptForStaff(savedDept);
+      }
     } catch (err) {
       console.error("Failed to save department:", err);
       throw err;
@@ -106,7 +114,6 @@ export default function Departments() {
           <p className="subtitle">
             Private organizational departments and medical specialties for <strong>{user?.organization_name || user?.name || "your organization"}</strong>
           </p>
-
         </div>
 
         <button className="btn primary" onClick={handleOpenAdd} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -210,7 +217,9 @@ export default function Departments() {
           </thead>
           <tbody>
             {filteredDepartments.map((d) => {
-              const assignedCount = staffCountMap[d.name] || 0;
+              const assignedCount = d.staff_count !== undefined && d.staff_count !== null
+                ? d.staff_count
+                : (staffCountMap[d.name] || 0);
               return (
                 <tr key={d.id}>
                   <td>
@@ -232,10 +241,26 @@ export default function Departments() {
                     </div>
                   </td>
                   <td>
-                    <span className="badge gray" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      <Users size={12} />
-                      {assignedCount} {assignedCount === 1 ? "Staff" : "Staff"}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDeptForStaff(d)}
+                      className="badge gray"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        border: "1px solid var(--line)",
+                        cursor: "pointer",
+                        background: "var(--line-light)",
+                        padding: "4px 10px",
+                        transition: "all 0.15s ease"
+                      }}
+                      title={`Click to view or manage staff members assigned to ${d.name}`}
+                    >
+                      <Users size={12} color="var(--primary)" />
+                      <span style={{ fontWeight: "700", color: "var(--heading)" }}>{assignedCount}</span>
+                      <span>{assignedCount === 1 ? "Staff Member" : "Staff Members"}</span>
+                    </button>
                   </td>
                   <td style={{ color: "var(--muted)", fontSize: "13px", maxWidth: "280px" }}>
                     {d.description || <span style={{ color: "var(--faint)" }}>No description provided</span>}
@@ -245,6 +270,14 @@ export default function Departments() {
                   </td>
                   <td style={{ textAlign: "right" }}>
                     <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => setSelectedDeptForStaff(d)}
+                        title="Manage Department Staff Members"
+                        style={{ padding: "4px 8px", background: "rgba(2, 132, 199, 0.1)", color: "var(--primary)" }}
+                      >
+                        <UserPlus size={14} />
+                      </button>
                       <button
                         className="btn btn-sm"
                         onClick={() => handleOpenEdit(d)}
@@ -286,13 +319,25 @@ export default function Departments() {
         </table>
       </div>
 
-      {/* Add / Edit Department Modal */}
+      {/* Add / Edit Department Modal (100% UNCHANGED) */}
       <AddDepartmentModal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditingDept(null); }}
         onSave={handleSaveDepartment}
         editingDept={editingDept}
       />
+
+      {/* Department Staff Management Modal */}
+      {selectedDeptForStaff && (
+        <DepartmentStaffModal
+          isOpen={!!selectedDeptForStaff}
+          department={selectedDeptForStaff}
+          onClose={() => setSelectedDeptForStaff(null)}
+          onStaffUpdated={() => {
+            if (reloadDepts) reloadDepts();
+          }}
+        />
+      )}
     </section>
   );
 }
