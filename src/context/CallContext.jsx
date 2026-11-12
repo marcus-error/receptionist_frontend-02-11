@@ -400,7 +400,11 @@ export function CallProvider({ children }) {
         return {
           ...prev,
           phase,
-          receptionist_state
+          receptionist_state,
+          rag_source: data.rag_source || prev.rag_source,
+          intent: data.intent || prev.intent,
+          emotion: data.emotion || prev.emotion,
+          language: data.language || prev.language
         };
       });
     });
@@ -533,6 +537,10 @@ export function CallProvider({ children }) {
         }
         return {
           ...prev,
+          rag_source: data.rag_source || prev.rag_source,
+          intent: data.intent || prev.intent,
+          emotion: data.emotion || prev.emotion,
+          language: data.language || prev.language,
           caller_said: event.role === "customer" ? event.text : prev.caller_said,
           ai_response: event.role === "assistant" ? event.text : prev.ai_response,
           phase: event.role === "customer" ? (event.is_partial ? "listening" : "processing") : "speaking"
