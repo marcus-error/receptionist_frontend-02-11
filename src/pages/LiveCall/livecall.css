@@ -745,6 +745,18 @@
   color: #7c3aed !important;
 }
 
+.meta-icon-circle.meta-gray,
+.meta-icon-circle.gray {
+  background: rgba(148, 163, 184, 0.12) !important;
+  color: #94a3b8 !important;
+}
+
+[data-theme="light"] .meta-icon-circle.meta-gray,
+[data-theme="light"] .meta-icon-circle.gray {
+  background: rgba(100, 116, 139, 0.12) !important;
+  color: #64748b !important;
+}
+
 .meta-text-col {
   display: flex;
   flex-direction: column;
@@ -774,6 +786,64 @@
 
 [data-theme="light"] .meta-value {
   color: #0f172a;
+}
+
+/* SIP Connection Status Badge & Indicators */
+.sip-status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  letter-spacing: -0.2px;
+}
+
+.sip-status-connected {
+  color: #10b981 !important;
+}
+
+.sip-status-disconnected {
+  color: #f87171 !important;
+}
+
+[data-theme="light"] .sip-status-connected {
+  color: #059669 !important;
+}
+
+[data-theme="light"] .sip-status-disconnected {
+  color: #dc2626 !important;
+}
+
+.sip-status-dot {
+  width: 7.5px;
+  height: 7.5px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.sip-status-dot.dot-connected {
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+  animation: sipPulseGreen 2s infinite ease-in-out;
+}
+
+.sip-status-dot.dot-disconnected {
+  background-color: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+@keyframes sipPulseGreen {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 /* Action Buttons Toolbar */

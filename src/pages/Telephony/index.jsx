@@ -12,33 +12,41 @@ const REG_STATUS_LABELS = {
   error:        { text: "ERROR",          color: "var(--danger)",           dot: "red" },
 };
 
+const emptyForm = {
+  account_name: "",
+  sip_server: "",
+  sip_proxy: "",
+  sip_username: "",
+  domain: "",
+  login: "",
+  sip_password: "",
+  display_name: "",
+  voicemail_number: "",
+  dialing_prefix: "",
+  dial_plan: "",
+  hide_caller_id: "Disabled",
+  media_encryption: "Disabled",
+  transport: "UDP",
+  public_address: "Auto",
+  register_refresh: 300,
+  keep_alive: 15,
+  publish_presence: false,
+  allow_ip_rewrite: false,
+  ice: false,
+  disable_session_timers: false,
+  sip_host: "",
+  sip_port: 5060,
+  did_number: "",
+};
+
 export default function Telephony() {
-  const [form, setForm] = useState({
-    account_name: "",
-    sip_server: "",
-    sip_proxy: "",
-    sip_username: "",
-    domain: "",
-    login: "",
-    sip_password: "",
-    display_name: "",
-    voicemail_number: "",
-    dialing_prefix: "",
-    dial_plan: "",
-    hide_caller_id: "Disabled",
-    media_encryption: "Disabled",
-    transport: "UDP",
-    public_address: "Auto",
-    register_refresh: 300,
-    keep_alive: 15,
-    publish_presence: false,
-    allow_ip_rewrite: false,
-    ice: false,
-    disable_session_timers: false,
-    sip_host: "",
-    sip_port: 5060,
-    did_number: "",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const [configs, setConfigs] = useState([]);
+  const [selectedConfigId, setSelectedConfigId] = useState(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [activatingId, setActivatingId] = useState(null);
+  const [deactivatingId, setDeactivatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [hasExistingPassword, setHasExistingPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -67,56 +75,84 @@ export default function Telephony() {
   const [feedback, setFeedback]   = useState(null);
   const [copied, setCopied]       = useState({ inbound: false, audio: false, hangup: false });
 
-  // ── Load SIP Config ────────────────────────────────────────────────────────
-  const loadSipConfig = useCallback(async (probe = true) => {
+  // ── Populate Form from Config Record ──────────────────────────────────────
+  const populateFormWith = (data) => {
+    if (!data) return;
+    setForm({
+      account_name:           data.account_name || "",
+      sip_server:             data.sip_server || "",
+      sip_proxy:              data.sip_proxy || "",
+      sip_username:           data.sip_username || "",
+      domain:                 data.domain || "",
+      login:                  data.login || "",
+      sip_password:           "",
+      display_name:           data.display_name || "",
+      voicemail_number:       data.voicemail_number || "",
+      dialing_prefix:         data.dialing_prefix || "",
+      dial_plan:              data.dial_plan || "",
+      hide_caller_id:         data.hide_caller_id || "Disabled",
+      media_encryption:       data.media_encryption || "Disabled",
+      transport:              data.transport || "UDP",
+      public_address:         data.public_address || "Auto",
+      register_refresh:       data.register_refresh ?? 300,
+      keep_alive:             data.keep_alive ?? 15,
+      publish_presence:       Boolean(data.publish_presence),
+      allow_ip_rewrite:       Boolean(data.allow_ip_rewrite),
+      ice:                    Boolean(data.ice),
+      disable_session_timers: Boolean(data.disable_session_timers),
+      sip_host:               data.sip_host || "",
+      sip_port:               data.sip_port || 5060,
+      did_number:             data.did_number || "",
+    });
+    setHasExistingPassword(Boolean(data.has_password));
+    setStatus(data.status || "disconnected");
+    setLatencyMs(data.latency_ms || null);
+    setConnectionDetail(data.connection_detail || null);
+    setLastConnectedAt(data.last_connected_at || null);
+    setLiveStats({
+      total_calls:  data.total_calls  || 0,
+      active_calls: data.active_calls || 0,
+      last_call_at: data.last_call_at || null,
+    });
+    if (data.registration_status) {
+      setRegStatus(data.registration_status);
+      setRegDetail(data.registration_detail || "");
+      setRegRegisteredAt(data.last_registered_at || null);
+    }
+  };
+
+  // ── Load All Configurations from DB ───────────────────────────────────────
+  const loadAllConfigs = useCallback(async (preferredId = null) => {
     try {
       setLoading(true);
-      const data = await telephonyService.getSipConfig(probe);
-      if (data) {
-        setForm({
-          account_name:           data.account_name || "",
-          sip_server:             data.sip_server || "",
-          sip_proxy:              data.sip_proxy || "",
-          sip_username:           data.sip_username || "",
-          domain:                 data.domain || "",
-          login:                  data.login || "",
-          sip_password:           "",
-          display_name:           data.display_name || "",
-          voicemail_number:       data.voicemail_number || "",
-          dialing_prefix:         data.dialing_prefix || "",
-          dial_plan:              data.dial_plan || "",
-          hide_caller_id:         data.hide_caller_id || "Disabled",
-          media_encryption:       data.media_encryption || "Disabled",
-          transport:              data.transport || "UDP",
-          public_address:         data.public_address || "Auto",
-          register_refresh:       data.register_refresh ?? 300,
-          keep_alive:             data.keep_alive ?? 15,
-          publish_presence:       Boolean(data.publish_presence),
-          allow_ip_rewrite:       Boolean(data.allow_ip_rewrite),
-          ice:                    Boolean(data.ice),
-          disable_session_timers: Boolean(data.disable_session_timers),
-          sip_host:               data.sip_host || "",
-          sip_port:               data.sip_port || 5060,
-          did_number:             data.did_number || "",
-        });
-        setHasExistingPassword(Boolean(data.has_password));
-        setStatus(data.status || "disconnected");
-        setLatencyMs(data.latency_ms || null);
-        setConnectionDetail(data.connection_detail || null);
-        setLastConnectedAt(data.last_connected_at || null);
-        setLiveStats({
-          total_calls:  data.total_calls  || 0,
-          active_calls: data.active_calls || 0,
-          last_call_at: data.last_call_at || null,
-        });
-        if (data.registration_status) {
-          setRegStatus(data.registration_status);
-          setRegDetail(data.registration_detail || "");
-          setRegRegisteredAt(data.last_registered_at || null);
-        }
+      const list = await telephonyService.listSipConfigs();
+      const safeList = Array.isArray(list) ? list : [];
+      setConfigs(safeList);
+
+      let target = null;
+      if (preferredId) {
+        target = safeList.find((c) => c.id === preferredId);
+      }
+      if (!target) {
+        // Prefer currently active configuration
+        target = safeList.find((c) => c.is_active);
+      }
+      if (!target && safeList.length > 0) {
+        target = safeList[0];
+      }
+
+      if (target) {
+        setSelectedConfigId(target.id);
+        setIsCreatingNew(false);
+        populateFormWith(target);
+      } else {
+        setSelectedConfigId(null);
+        setIsCreatingNew(true);
+        setForm(emptyForm);
+        setHasExistingPassword(false);
       }
     } catch (err) {
-      console.error("Failed to load SIP configuration:", err);
+      console.error("Failed to load SIP configurations:", err);
     } finally {
       setLoading(false);
     }
@@ -137,8 +173,8 @@ export default function Telephony() {
   }, []);
 
   useEffect(() => {
-    loadSipConfig(true);
-  }, [loadSipConfig]);
+    loadAllConfigs();
+  }, [loadAllConfigs]);
 
   // Poll registration status every 5 s while registering
   useEffect(() => {
@@ -157,7 +193,7 @@ export default function Telephony() {
     if (feedback) setFeedback(null);
   };
 
-  // ── Save SIP Credentials ───────────────────────────────────────────────────
+  // ── Save SIP Configuration (Does NOT Activate) ────────────────────────────
   const handleSave = async (e) => {
     e?.preventDefault();
     setSaving(true);
@@ -190,28 +226,110 @@ export default function Telephony() {
       };
       if (form.sip_password) payload.sip_password = form.sip_password;
 
-      const res = await telephonyService.updateSipConfig(payload);
-      setStatus(res.status || "disconnected");
-      setLatencyMs(res.latency_ms || null);
-      setConnectionDetail(res.connection_detail || null);
-      setLastConnectedAt(res.last_connected_at || new Date().toISOString());
-      if (form.sip_password) {
-        setHasExistingPassword(true);
-        setForm(prev => ({ ...prev, sip_password: "" }));
-      }
-      if (res.registration_status) {
-        setRegStatus(res.registration_status);
-        if (res.registration_detail) setRegDetail(res.registration_detail);
-      }
-      if (res.status === "connected") {
-        setFeedback({ type: "success", message: `SIP credentials saved! Network probe: ${res.connection_detail || "Connected"}` });
+      let res;
+      if (isCreatingNew || !selectedConfigId) {
+        res = await telephonyService.createSipConfig(payload);
+        setIsCreatingNew(false);
+        setSelectedConfigId(res.id);
       } else {
-        setFeedback({ type: "error", message: `Saved, but network probe failed: ${res.connection_detail || "Unreachable"}` });
+        res = await telephonyService.updateSipConfigById(selectedConfigId, payload);
+      }
+
+      populateFormWith(res);
+      await loadAllConfigs(res.id);
+
+      if (res.is_active) {
+        setFeedback({
+          type: "success",
+          message: `SIP configuration updated & synchronized (Active Trunk).`,
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          message: `SIP configuration saved! Note: Status is INACTIVE. Click "Activate" whenever you want this configuration to handle calls.`,
+        });
       }
     } catch (err) {
-      setFeedback({ type: "error", message: err.response?.data?.detail || err.message || "Failed to save." });
+      setFeedback({
+        type: "error",
+        message: err.response?.data?.detail || err.message || "Failed to save configuration.",
+      });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Explicit Activate SIP Configuration ───────────────────────────────────
+  const handleActivateConfig = async (cfgId) => {
+    const id = cfgId || selectedConfigId;
+    if (!id) return;
+    setActivatingId(id);
+    setFeedback(null);
+    try {
+      const res = await telephonyService.activateSipConfig(id);
+      populateFormWith(res);
+      await loadAllConfigs(id);
+      setFeedback({
+        type: "success",
+        message: `SIP Configuration #${id} successfully ACTIVATED! Trunk is now live for phone calls.`,
+      });
+      setTimeout(() => loadRegStatus(), 3000);
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err.response?.data?.detail || err.message || "Failed to activate SIP configuration.",
+      });
+    } finally {
+      setActivatingId(null);
+    }
+  };
+
+  // ── Explicit Deactivate SIP Configuration ─────────────────────────────────
+  const handleDeactivateConfig = async (cfgId) => {
+    const id = cfgId || selectedConfigId;
+    setDeactivatingId(id || "current");
+    setFeedback(null);
+    try {
+      const res = await telephonyService.deactivateSipConfig(id);
+      populateFormWith(res);
+      await loadAllConfigs(id);
+      setFeedback({
+        type: "success",
+        message: `SIP Configuration deactivated successfully. SIP Trunk unregistered.`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err.response?.data?.detail || err.message || "Failed to deactivate SIP configuration.",
+      });
+    } finally {
+      setDeactivatingId(null);
+    }
+  };
+
+  // ── Delete SIP Configuration ──────────────────────────────────────────────
+  const handleDeleteConfig = async (cfgId) => {
+    const id = cfgId || selectedConfigId;
+    if (!id) return;
+    if (!window.confirm(`Are you sure you want to delete SIP configuration #${id}?`)) {
+      return;
+    }
+    setDeletingId(id);
+    setFeedback(null);
+    try {
+      await telephonyService.deleteSipConfig(id);
+      setFeedback({
+        type: "success",
+        message: `SIP configuration #${id} deleted successfully.`,
+      });
+      await loadAllConfigs();
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err.response?.data?.detail || err.message || "Failed to delete configuration.",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -248,48 +366,18 @@ export default function Telephony() {
     }
   };
 
-  // ── SIP REGISTER ──────────────────────────────────────────────────────────
+  // ── SIP REGISTER / Quick Activate ─────────────────────────────────────────
   const handleRegister = async () => {
-    setRegistering(true);
-    setFeedback(null);
-    try {
-      const payload = {
-        account_name: form.account_name,
-        sip_server:   form.sip_server,
-        sip_proxy:    form.sip_proxy,
-        domain:       form.domain,
-        sip_username: form.sip_username,
-        login:        form.login,
-        sip_host:     form.domain || form.sip_proxy || form.sip_server || form.sip_host || undefined,
-        sip_port:     form.sip_port ? Number(form.sip_port) : 5060,
-        did_number:   form.did_number || undefined,
-      };
-      if (form.sip_password) payload.sip_password = form.sip_password;
-
-      const res = await telephonyService.registerSip(payload);
-      setRegStatus(res.status || "registering");
-      setFeedback({ type: "success", message: res.message || "SIP registration initiated." });
-      setTimeout(() => loadRegStatus(), 4000);
-    } catch (err) {
-      setFeedback({ type: "error", message: err.response?.data?.detail || err.message || "Registration failed." });
-    } finally {
-      setRegistering(false);
+    if (selectedConfigId) {
+      await handleActivateConfig(selectedConfigId);
+    } else {
+      setFeedback({ type: "error", message: "Please save or select a SIP configuration first." });
     }
   };
 
-  // ── SIP UNREGISTER ────────────────────────────────────────────────────────
+  // ── SIP UNREGISTER / Quick Deactivate ─────────────────────────────────────
   const handleUnregister = async () => {
-    setUnregistering(true);
-    try {
-      await telephonyService.unregisterSip();
-      setRegStatus("unregistered");
-      setRegDetail("Unregistered by admin.");
-      setFeedback({ type: "success", message: "SIP trunk unregistered successfully." });
-    } catch (err) {
-      setFeedback({ type: "error", message: err.response?.data?.detail || err.message || "Unregister failed." });
-    } finally {
-      setUnregistering(false);
-    }
+    await handleDeactivateConfig(selectedConfigId);
   };
 
   // ── E2E Test ───────────────────────────────────────────────────────────────
@@ -402,12 +490,174 @@ export default function Telephony() {
         </div>
       </div>
 
+      {/* ── No Active SIP Configuration Banner ────────────────────────────── */}
+      {!configs.some((c) => c.is_active) && (
+        <div
+          className="sip-alert warning"
+          style={{
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(239, 68, 68, 0.35)",
+            borderRadius: "var(--radius-lg, 12px)",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            marginBottom: "4px",
+          }}
+        >
+          <span style={{ fontSize: "24px" }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <strong style={{ fontSize: "15px", color: "var(--danger, #ef4444)", display: "block" }}>
+              No active SIP configuration. Please activate a SIP configuration.
+            </strong>
+            <span style={{ fontSize: "13px", color: "var(--muted)", marginTop: "2px", display: "block" }}>
+              Incoming and outbound calls are paused until an authorized SIP Trunk configuration is explicitly activated below.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Saved SIP Configurations List ───────────────────────────────────── */}
+      <div className="sip-card">
+        <div className="sip-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+          <div>
+            <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>📋</span> Saved SIP Configurations ({configs.length})
+            </h2>
+            <p>Manage, test, and activate SIP provider trunk configurations for this organization.</p>
+          </div>
+          <button
+            type="button"
+            className="sip-btn-primary"
+            onClick={() => {
+              setIsCreatingNew(true);
+              setSelectedConfigId(null);
+              setForm(emptyForm);
+              setHasExistingPassword(false);
+              setFeedback(null);
+            }}
+            style={{ padding: "8px 16px", fontSize: "13px" }}
+          >
+            + Add SIP Configuration
+          </button>
+        </div>
+
+        {configs.length === 0 ? (
+          <div style={{ padding: "28px", textAlign: "center", color: "var(--muted)", fontSize: "14px" }}>
+            No SIP configurations found. Click <strong>+ Add SIP Configuration</strong> above to set up your first SIP trunk.
+          </div>
+        ) : (
+          <div className="sip-config-list-grid">
+            {configs.map((cfg) => {
+              const isSelected = selectedConfigId === cfg.id && !isCreatingNew;
+              const host = cfg.sip_host || cfg.domain || cfg.sip_proxy || cfg.sip_server || "No Host";
+              const user = cfg.sip_username || cfg.login || "—";
+              return (
+                <div
+                  key={cfg.id}
+                  className={`sip-config-card ${isSelected ? "selected" : ""} ${cfg.is_active ? "active" : ""}`}
+                  onClick={() => {
+                    setIsCreatingNew(false);
+                    setSelectedConfigId(cfg.id);
+                    populateFormWith(cfg);
+                  }}
+                >
+                  <div className="sip-config-card-header">
+                    <div>
+                      <h4 style={{ margin: "0 0 2px 0", fontSize: "15px", color: "var(--heading)", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>{cfg.account_name || `SIP Trunk #${cfg.id}`}</span>
+                      </h4>
+                      <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                        User: <strong style={{ color: "var(--fg)" }}>{user}</strong> • Host: <strong style={{ color: "var(--fg)" }}>{host}:{cfg.sip_port || 5060}</strong>
+                      </span>
+                    </div>
+                    <div>
+                      {cfg.is_active ? (
+                        <span className="sip-badge-active">● ACTIVE</span>
+                      ) : (
+                        <span className="sip-badge-inactive">○ INACTIVE</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="sip-config-card-body" style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12.5px" }}>
+                    <span style={{ color: "var(--muted)" }}>
+                      DID: <strong style={{ color: "var(--fg)" }}>{cfg.did_number || "None"}</strong>
+                    </span>
+
+                    <div className="sip-config-card-actions" onClick={(e) => e.stopPropagation()}>
+                      {cfg.is_active ? (
+                        <button
+                          type="button"
+                          className="sip-card-action-btn deactivate"
+                          onClick={() => handleDeactivateConfig(cfg.id)}
+                          disabled={deactivatingId === cfg.id}
+                          title="Deactivate this trunk"
+                        >
+                          {deactivatingId === cfg.id ? "…" : "Deactivate"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="sip-card-action-btn activate"
+                          onClick={() => handleActivateConfig(cfg.id)}
+                          disabled={activatingId === cfg.id}
+                          title="Activate this trunk for live calls"
+                        >
+                          {activatingId === cfg.id ? "Activating…" : "Activate"}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="sip-card-action-btn edit"
+                        onClick={() => {
+                          setIsCreatingNew(false);
+                          setSelectedConfigId(cfg.id);
+                          populateFormWith(cfg);
+                        }}
+                        title="Edit configuration"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="sip-card-action-btn delete"
+                        onClick={() => handleDeleteConfig(cfg.id)}
+                        disabled={deletingId === cfg.id}
+                        title="Delete configuration"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* ── SIP Account Reference Form Card ─────────────────────────────────── */}
       <div className="sip-card">
         <div className="sip-card-header">
           <div>
-            <h2>SIP Account Details</h2>
-            <p>Configure your SIP account credentials & softphone settings</p>
+            <h2 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>{isCreatingNew ? "➕ Add New SIP Configuration" : `✏️ Edit: ${form.account_name || `Trunk #${selectedConfigId}`}`}</span>
+              {!isCreatingNew && (
+                configs.find((c) => c.id === selectedConfigId)?.is_active ? (
+                  <span className="sip-badge-active" style={{ fontSize: "11px" }}>● ACTIVE TRUNK</span>
+                ) : (
+                  <span className="sip-badge-inactive" style={{ fontSize: "11px" }}>○ INACTIVE</span>
+                )
+              )}
+            </h2>
+            <p>
+              {isCreatingNew
+                ? "Enter your SIP account credentials. Newly created configurations remain INACTIVE until explicitly activated."
+                : "Edit configuration credentials. Saving updates the record without auto-activating."}
+            </p>
           </div>
           {lastConnectedAt && (
             <div className="sip-sync-tag">
@@ -769,14 +1019,67 @@ export default function Telephony() {
           )}
 
           {/* Buttons */}
-          <div className="sip-form-actions">
+          <div className="sip-form-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
             <button type="submit" className="sip-btn-primary" disabled={saving || loading || (!form.domain && !form.sip_host && !form.sip_server)}>
-              {saving ? "Saving & Probing…" : "Save Account Settings"}
+              {saving ? "Saving…" : (isCreatingNew ? "Save Configuration" : "Save Changes")}
             </button>
             <button type="button" className="sip-btn-secondary" onClick={handleTestConnection}
                     disabled={testing || saving || loading || (!form.domain && !form.sip_host && !form.sip_server)}>
               {testing ? "Probing…" : "Test Network"}
             </button>
+
+            {!isCreatingNew && selectedConfigId && (
+              configs.find((c) => c.id === selectedConfigId)?.is_active ? (
+                <button
+                  type="button"
+                  className="sip-btn-secondary"
+                  onClick={() => handleDeactivateConfig(selectedConfigId)}
+                  disabled={deactivatingId === selectedConfigId}
+                  style={{ borderColor: "#ef4444", color: "#ef4444" }}
+                >
+                  {deactivatingId === selectedConfigId ? "Deactivating…" : "⏸ Deactivate Configuration"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="sip-btn-primary"
+                  onClick={() => handleActivateConfig(selectedConfigId)}
+                  disabled={activatingId === selectedConfigId}
+                  style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
+                >
+                  {activatingId === selectedConfigId ? "Activating Trunk…" : "▶ Activate This Configuration"}
+                </button>
+              )
+            )}
+
+            {!isCreatingNew && selectedConfigId && (
+              <button
+                type="button"
+                className="sip-btn-secondary"
+                onClick={() => handleDeleteConfig(selectedConfigId)}
+                disabled={deletingId === selectedConfigId}
+                style={{ borderColor: "rgba(239, 68, 68, 0.4)", color: "#ef4444" }}
+              >
+                Delete Configuration
+              </button>
+            )}
+
+            {isCreatingNew && configs.length > 0 && (
+              <button
+                type="button"
+                className="sip-btn-secondary"
+                onClick={() => {
+                  setIsCreatingNew(false);
+                  const first = configs.find((c) => c.is_active) || configs[0];
+                  if (first) {
+                    setSelectedConfigId(first.id);
+                    populateFormWith(first);
+                  }
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </form>
 
@@ -802,7 +1105,7 @@ export default function Telephony() {
           <span style={{ fontSize: "18px" }}>💡</span> How to Connect Live Inbound Phone Calls
         </div>
         <p style={{ fontSize: "13.5px", color: "var(--muted)", margin: "0 0 12px 0", lineHeight: "1.5" }}>
-          External SIP / Telecom providers (e.g. <code>{form.sip_host || "49.249.142.147"}</code>, Jio, Airtel, Twilio, Exotel) cannot reach <code>localhost:8000</code> directly from the internet. To connect real mobile / landline phone calls to the AI Receptionist:
+          External SIP / Telecom providers (e.g. <code>{primaryHostDisplay || "your-sip-provider.com"}</code>, Jio, Airtel, Twilio, Exotel) cannot reach <code>localhost:8000</code> directly from the internet. To connect real mobile / landline phone calls to the AI Receptionist:
         </p>
         
         <ol style={{ fontSize: "13px", color: "var(--fg)", margin: 0, paddingLeft: "20px", lineHeight: "1.6" }}>

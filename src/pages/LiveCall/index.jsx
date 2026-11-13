@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Badge from "../../components/ui/Badge.jsx";
 import callService from "../../services/call.service.js";
+import telephonyService from "../../services/telephony.service.js";
 import { useCall } from "../../context/CallContext.jsx";
 import useAuth from "../../hooks/useAuth.js";
 import api from "../../services/api.js";
@@ -197,10 +198,86 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrg, setSelectedOrg] = useState("");
 
+  const [sipConnectionStatus, setSipConnectionStatus] = useState("unknown"); // "connected" | "disconnected" | "unknown"
+  const [sipTrunkUri, setSipTrunkUri] = useState("");
+
   const dialogueStreamRef = useRef(null);
 
   const isLive = Boolean(activeCall && (callState === "in-progress" || callState === "connected"));
   const callData = isLive ? activeCall : null;
+
+  // Live SIP Trunk registration / connection check
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkSip() {
+      // If a call is currently live, SIP connection is guaranteed active
+      if (isLive) {
+        if (isMounted) setSipConnectionStatus("connected");
+        return;
+      }
+
+      try {
+        const params = selectedOrg ? { organization_id: selectedOrg } : {};
+        const reg = await telephonyService.getRegistrationStatus(params);
+        if (!isMounted) return;
+
+        if (reg && (reg.status === "registered" || reg.status === "connected")) {
+          setSipConnectionStatus("connected");
+          if (reg.sip_username && reg.sip_host) {
+            setSipTrunkUri(`sip:${reg.sip_username}@${reg.sip_host}`);
+          }
+          return;
+        }
+
+        // Secondary fallback to SIP config
+        const cfg = await telephonyService.getSipConfig(false, params);
+        if (!isMounted) return;
+
+        if (cfg && (cfg.status === "connected" || cfg.registration_status === "registered")) {
+          setSipConnectionStatus("connected");
+          if (cfg.sip_username && cfg.sip_host) {
+            setSipTrunkUri(`sip:${cfg.sip_username}@${cfg.sip_host}`);
+          }
+          return;
+        }
+
+        setSipConnectionStatus("disconnected");
+      } catch (err) {
+        if (!isMounted) return;
+        // In case of restricted demo or fallback mode, probe demo-status
+        try {
+          const demoRes = await api.get("/telephony/demo-status");
+          if (!isMounted) return;
+          if (demoRes?.data?.sip_registered || demoRes?.data?.phone_system_connected) {
+            setSipConnectionStatus("connected");
+          } else {
+            setSipConnectionStatus("disconnected");
+          }
+        } catch {
+          if (isMounted) {
+            setSipConnectionStatus("disconnected");
+          }
+        }
+      }
+    }
+
+    checkSip();
+    const interval = setInterval(checkSip, 12000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedOrg, isLive]);
+
+  // Determine dynamic SIP connection state
+  const isSipConnected = Boolean(
+    isLive ||
+    activeCall?.sip_connected === true ||
+    activeCall?.sip_status === "connected" ||
+    activeCall?.sip_status === "registered" ||
+    sipConnectionStatus === "connected"
+  );
 
   // Caller identification
   const rawCustomerPhone = isLive ? getCustomerPhone(activeCall) : (getCustomerPhone(dbCall) || "");
@@ -210,9 +287,10 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
     : (rawCustomerPhone || (isLive ? "Incoming Caller" : (dbCall ? "Past Caller" : "Standby")));
   const customerName = isDemoMode ? maskName(rawCustomerName) : rawCustomerName;
 
-  // Business Name and SIP Trunk
+  // Business Name and dynamic SIP Trunk URI (without dummy fallbacks)
   const businessName = activeCall?.organization_name || dbCall?.organization_name || user?.organization_name || "AI Receptionist";
-  const sipTrunk = activeCall?.sip_trunk || dbCall?.sip_trunk || (isLive ? "sip:live@callzenza.local" : "sip:receptionist@callzenza.local");
+  const rawSipTrunk = activeCall?.sip_trunk || dbCall?.sip_trunk || sipTrunkUri || "";
+  const cleanSipTrunk = (rawSipTrunk && !rawSipTrunk.includes("callzenza.local")) ? rawSipTrunk : "";
 
   // Reset cleared state when new conversation events stream in
   useEffect(() => {
@@ -558,15 +636,23 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
               </div>
 
               {/* SIP Trunk */}
-              <div className="meta-info-box">
-                <div className="meta-icon-circle meta-purple">
+              <div
+                className="meta-info-box"
+                title={cleanSipTrunk ? `SIP Trunk: ${cleanSipTrunk} (${isSipConnected ? "Connected" : "Not Connected"})` : (isSipConnected ? "SIP Trunk Connected" : "SIP Trunk Not Connected")}
+              >
+                <div className={`meta-icon-circle ${isSipConnected ? "meta-purple" : "meta-gray"}`}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                   </svg>
                 </div>
                 <div className="meta-text-col">
                   <span className="meta-label">SIP Trunk</span>
-                  <strong className="meta-value">{sipTrunk}</strong>
+                  <strong
+                    className={`meta-value sip-status-badge ${isSipConnected ? "sip-status-connected" : "sip-status-disconnected"}`}
+                  >
+                    <span className={`sip-status-dot ${isSipConnected ? "dot-connected" : "dot-disconnected"}`} />
+                    {isSipConnected ? "Connected" : "Not Connected"}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -825,12 +911,12 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
             {/* Stepper Progress Items on Left */}
             <div className="state-stepper-container">
               {/* Step 1: SIP Connection */}
-              <div className={`stepper-item-row ${isLive || dbCall ? "completed" : "pending"}`}>
-                <div className={isLive || dbCall ? "stepper-check-circle" : "stepper-idle-circle"}>
-                  {isLive || dbCall ? "✓" : <span className="idle-inner-dot" />}
+              <div className={`stepper-item-row ${isLive || isSipConnected || dbCall ? "completed" : "pending"}`}>
+                <div className={isLive || isSipConnected || dbCall ? "stepper-check-circle" : "stepper-idle-circle"}>
+                  {isLive || isSipConnected || dbCall ? "✓" : <span className="idle-inner-dot" />}
                 </div>
                 <span className="stepper-step-text">
-                  {isLive ? "SIP Call Connected" : (dbCall ? "SIP Call Completed" : "SIP Trunk Ready")}
+                  {isLive ? "SIP Call Connected" : (dbCall ? "SIP Call Completed" : (isSipConnected ? "SIP Trunk Connected" : "SIP Not Connected"))}
                 </span>
               </div>
 
