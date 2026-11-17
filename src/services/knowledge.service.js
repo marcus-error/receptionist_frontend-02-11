@@ -29,6 +29,7 @@ export const knowledgeService = {
     }).then((res) => res.data);
   },
   queryRag: (query, organizationId = 1, scope = null) => api.post(`${BASE}/query`, { query, organization_id: organizationId, scope }).then((res) => res.data),
+  getActive: () => api.get(`${BASE}/active`).then((res) => res.data),
   reindexAll: () => api.post(`${BASE}/reindex`).then((res) => res.data),
   update: (id, payload) => api.put(`${BASE}/${id}`, payload).then((res) => res.data),
   remove: (id) => api.delete(`${BASE}/${id}`).then((res) => res.data),

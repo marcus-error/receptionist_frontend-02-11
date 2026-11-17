@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import Badge from "../../components/ui/Badge.jsx";
 import API_BASE_URL from "../../config/api.js";
+import { knowledgeService } from "../../services/knowledge.service.js";
 
 export default function Voice() {
   const [callData, setCallData] = useState({
@@ -20,6 +21,14 @@ export default function Voice() {
   const [sttLang, setSttLang] = useState("en-IN");
   const [micError, setMicError] = useState(null);
   const [textInput, setTextInput] = useState("");
+  const [activeDocInfo, setActiveDocInfo] = useState({
+    id: null,
+    title: "",
+    has_active: false,
+    business_type: "GENERAL",
+    booking_type: "BUSINESS_CONSULTATION",
+    error: null
+  });
 
   const wsRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -135,11 +144,11 @@ export default function Voice() {
     }
 
     acousticGuardTimeoutRef.current = setTimeout(() => {
-      if (isRecordingRef.current && !isOnHoldRef.current && !isAiSpeakingRef.current && !isPlayingQueueRef.current) {
+      if (isRecordingRef.current && !isOnHoldRef.current && !isAiSpeakingRef.current && !isPlayingQueueRef.current && !currentAudioRef.current) {
         setVoiceState("LISTENING");
         safeStartRecognition();
       }
-    }, 150);
+    }, 450);
   };
 
   const playContinuousAudio = (base64Audio) => {
@@ -160,6 +169,12 @@ export default function Voice() {
     isAiSpeakingRef.current = true;
     setVoiceState("AI_SPEAKING");
 
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ type: "playback_started", timestamp: Date.now() }));
+      } catch (e) {}
+    }
+
     // Immediately isolate microphone while AI is speaking
     if (recognitionRef.current && isRecognitionActiveRef.current) {
       try {
@@ -178,6 +193,11 @@ export default function Voice() {
       setIsAiSpeaking(false);
       isAiSpeakingRef.current = false;
       lastAiSpeechEndedTimeRef.current = Date.now();
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(JSON.stringify({ type: "playback_completed", timestamp: Date.now() }));
+        } catch (e) {}
+      }
       if (!isOnHoldRef.current) {
         resumeRecognitionSafely();
       }
@@ -203,6 +223,12 @@ export default function Voice() {
     isAiSpeakingRef.current = true;
     setVoiceState("AI_SPEAKING");
 
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ type: "playback_started", timestamp: Date.now() }));
+      } catch (e) {}
+    }
+
     if (recognitionRef.current && isRecognitionActiveRef.current) {
       try {
         recognitionRef.current.abort();
@@ -225,6 +251,11 @@ export default function Voice() {
         setIsAiSpeaking(false);
         isAiSpeakingRef.current = false;
         lastAiSpeechEndedTimeRef.current = Date.now();
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          try {
+            wsRef.current.send(JSON.stringify({ type: "playback_completed", timestamp: Date.now() }));
+          } catch (e) {}
+        }
         if (!isOnHoldRef.current) {
           resumeRecognitionSafely();
         }
@@ -240,6 +271,11 @@ export default function Voice() {
         setIsAiSpeaking(false);
         isAiSpeakingRef.current = false;
         lastAiSpeechEndedTimeRef.current = Date.now();
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          try {
+            wsRef.current.send(JSON.stringify({ type: "playback_completed", timestamp: Date.now() }));
+          } catch (e) {}
+        }
         if (!isOnHoldRef.current) {
           resumeRecognitionSafely();
         }
@@ -256,6 +292,11 @@ export default function Voice() {
         setIsAiSpeaking(false);
         isAiSpeakingRef.current = false;
         lastAiSpeechEndedTimeRef.current = Date.now();
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          try {
+            wsRef.current.send(JSON.stringify({ type: "playback_completed", timestamp: Date.now() }));
+          } catch (e) {}
+        }
         if (!isOnHoldRef.current) {
           resumeRecognitionSafely();
         }
@@ -267,6 +308,49 @@ export default function Voice() {
     audioQueueRef.current.push(base64Audio);
     playAudioQueue();
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchActiveDocument = async () => {
+      try {
+        const res = await knowledgeService.getActive();
+        if (!isMounted) return;
+        if (res && res.has_active && res.document) {
+          setActiveDocInfo({
+            id: res.document.id,
+            title: res.document.title,
+            has_active: true,
+            business_type: res.document.document_type || "GENERAL",
+            booking_type: "GENERAL",
+            error: null
+          });
+          setCallData(prev => ({
+            ...prev,
+            active_rag_title: res.document.title,
+            rag_source: `${res.document.title} (ID: ${res.document.id})`
+          }));
+        } else {
+          setActiveDocInfo({
+            id: null,
+            title: "",
+            has_active: false,
+            business_type: "GENERAL",
+            booking_type: "GENERAL",
+            error: "No active RAG document found for this organization."
+          });
+          setCallData(prev => ({
+            ...prev,
+            active_rag_title: "No Active Document",
+            rag_source: "No Active Document"
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not pre-fetch active RAG document:", err);
+      }
+    };
+    fetchActiveDocument();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -300,13 +384,58 @@ export default function Voice() {
         const data = JSON.parse(event.data);
 
         if (data.type === "rag_bound") {
+          const hasActive = data.has_active !== false && data.title && data.title !== "No Active Document" && data.title !== "None";
+          setActiveDocInfo(prev => ({
+            ...prev,
+            id: data.document_id || null,
+            title: data.title || "",
+            has_active: hasActive,
+            business_type: data.business_type || prev.business_type,
+            booking_type: data.booking_type || prev.booking_type,
+            error: hasActive ? null : "No active RAG document found."
+          }));
           setCallData(prev => ({
             ...prev,
             active_rag_title: data.title || "Active Knowledge Base",
-            rag_source: (data.document_id && data.title && data.title !== "None")
+            rag_source: (data.document_id && data.title && data.title !== "None" && data.title !== "No Active Document")
               ? `${data.title} (ID: ${data.document_id})`
-              : (data.title && data.title !== "None" ? data.title : "No Active Document")
+              : "No Active Document"
           }));
+        } else if (data.type === "call_started") {
+          setActiveDocInfo(prev => ({
+            ...prev,
+            id: data.document_id,
+            title: data.title,
+            has_active: true,
+            business_type: data.business_type || prev.business_type,
+            booking_type: data.booking_type || prev.booking_type,
+            error: null
+          }));
+          setCallData(prev => ({
+            ...prev,
+            caller_said: "",
+            ai_response: "",
+            intent: "Call Connected",
+            emotion: "Neutral",
+            active_rag_title: data.title,
+            rag_source: `${data.title} (ID: ${data.document_id})`
+          }));
+          setIsRecording(true);
+          isRecordingRef.current = true;
+        } else if (data.type === "call_error") {
+          setMicError(data.message || "Failed to start call");
+          setIsRecording(false);
+          isRecordingRef.current = false;
+          setVoiceState("ERROR");
+          stopAudioPlayback();
+          if (recognitionRef.current) {
+            try { recognitionRef.current.abort(); } catch (e) {}
+          }
+        } else if (data.type === "call_ended") {
+          setIsRecording(false);
+          isRecordingRef.current = false;
+          setVoiceState("IDLE");
+          stopAudioPlayback();
         } else if (data.type === "transcription") {
           setCallData(prev => ({ ...prev, caller_said: data.text }));
         } else if (data.type === "analysis") {
@@ -349,7 +478,7 @@ export default function Voice() {
           setIsOnHold(data.status === "on_hold");
           setVoiceState(data.status === "on_hold" ? "ON_HOLD" : "LISTENING");
         } else if (data.type === "state") {
-          if (data.state && !isAiSpeakingRef.current && !isPlayingQueueRef.current && !isOnHoldRef.current) {
+          if (data.state && !isAiSpeakingRef.current && !isPlayingQueueRef.current && !isOnHoldRef.current && !currentAudioRef.current) {
             setVoiceState(data.state === "SPEAKING" ? "AI_SPEAKING" : data.state);
             if (data.state === "LISTENING" && isRecordingRef.current) {
               resumeRecognitionSafely();
@@ -387,19 +516,19 @@ export default function Voice() {
       recognition.onstart = () => {
         isRecognitionActiveRef.current = true;
         setMicError(null);
-        if (!isAiSpeakingRef.current && !isOnHoldRef.current && voiceStateRef.current !== "AI_SPEAKING") {
+        if (!isAiSpeakingRef.current && !isOnHoldRef.current && voiceStateRef.current !== "AI_SPEAKING" && !currentAudioRef.current) {
           setVoiceState("LISTENING");
         }
       };
 
       recognition.onresult = (event) => {
         const timeSinceAiEnded = Date.now() - lastAiSpeechEndedTimeRef.current;
-        if (isOnHoldRef.current || isAiSpeakingRef.current || isPlayingQueueRef.current || voiceStateRef.current === "AI_SPEAKING") {
+        if (isOnHoldRef.current || isAiSpeakingRef.current || isPlayingQueueRef.current || currentAudioRef.current || voiceStateRef.current === "AI_SPEAKING") {
           console.warn("[ECHO GUARD DISCARDED] Ignored speech captured while AI was speaking or on hold.");
           return;
         }
-        if (timeSinceAiEnded < 150) {
-          console.warn(`[ECHO GUARD DISCARDED] Ignored acoustic reverberation (${timeSinceAiEnded}ms < 150ms).`);
+        if (timeSinceAiEnded < 450) {
+          console.warn(`[ECHO GUARD DISCARDED] Ignored acoustic reverberation (${timeSinceAiEnded}ms < 450ms).`);
           return;
         }
 
@@ -408,11 +537,12 @@ export default function Voice() {
         if (!lastResult || !lastResult[0]) return;
 
         const transcript = lastResult[0].transcript ? lastResult[0].transcript.trim() : "";
+        const confidence = (typeof lastResult[0].confidence === "number") ? lastResult[0].confidence : 1.0;
         if (transcript && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           const utteranceId = `utt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
           setVoiceState("PROCESSING");
           setCallData(prev => ({ ...prev, ai_response: "", caller_said: transcript }));
-          wsRef.current.send(JSON.stringify({ text: transcript, utterance_id: utteranceId }));
+          wsRef.current.send(JSON.stringify({ text: transcript, utterance_id: utteranceId, confidence }));
         }
       };
 
@@ -481,6 +611,7 @@ export default function Voice() {
     }
 
     if (isRecording) {
+      // Stopping active call
       setIsRecording(false);
       isRecordingRef.current = false;
       setIsOnHold(false);
@@ -488,14 +619,43 @@ export default function Voice() {
       setVoiceState("IDLE");
       stopAudioPlayback();
       try { recognitionRef.current.stop(); } catch (e) {}
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "stop_call" }));
+      }
     } else {
+      // Starting new call
       setMicError(null);
+
+      // Validate active RAG document before initiating
+      if (activeDocInfo.has_active === false || callData.rag_source === "No Active Document") {
+        setMicError("Cannot start call: No active RAG document found for your organization. Please upload and activate a document in Knowledge Base first.");
+        return;
+      }
+
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        setMicError("Voice server is not connected yet. Please check your connection and try again.");
+        return;
+      }
+
       setIsRecording(true);
       isRecordingRef.current = true;
       setIsOnHold(false);
       isOnHoldRef.current = false;
-      setVoiceState("LISTENING");
-      safeStartRecognition();
+      setVoiceState("PROCESSING");
+      setCallData(prev => ({
+        ...prev,
+        caller_said: "",
+        ai_response: "",
+        intent: "Starting call...",
+        emotion: "Neutral"
+      }));
+
+      let rawToken = localStorage.getItem("token") || "";
+      let token = rawToken.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1").replace(/^Bearer\s+/i, "").trim();
+      wsRef.current.send(JSON.stringify({
+        type: "start_call",
+        token: token
+      }));
     }
   };
 
@@ -507,6 +667,10 @@ export default function Voice() {
     const utteranceId = `txt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     if (isAiSpeaking || isPlayingQueueRef.current) {
       stopAudioPlayback();
+    }
+    if (!isRecordingRef.current) {
+      setIsRecording(true);
+      isRecordingRef.current = true;
     }
     setVoiceState("PROCESSING");
     setCallData(prev => ({ ...prev, ai_response: "", caller_said: userMsg }));
@@ -550,6 +714,11 @@ export default function Voice() {
               ● {status.toUpperCase()}
             </Badge>
             {getStateBadge()}
+            {callData.rag_source && callData.rag_source !== "No Active Document" && (
+              <Badge color="purple">
+                📄 {callData.rag_source}
+              </Badge>
+            )}
             {totalMs && (
               <Badge color={latencyBadgeColor}>
                 {totalMs < 1200 ? `⚡ ${totalMs} ms (Fast Path)` : `⏱️ ${totalMs} ms`}
@@ -579,6 +748,24 @@ export default function Voice() {
           </select>
         </div>
       </div>
+
+      {!activeDocInfo.has_active && !isRecording && (
+        <div style={{
+          margin: "0 0 16px 0",
+          padding: "12px 16px",
+          borderRadius: "var(--radius-md)",
+          background: "rgba(234, 179, 8, 0.1)",
+          border: "1px solid rgba(234, 179, 8, 0.3)",
+          color: "#ca8a04",
+          fontSize: "13.5px",
+          fontWeight: "600",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          ⚠️ No active RAG document found for this organization. Please activate a document in Knowledge Base to start receptionist calls.
+        </div>
+      )}
 
       {micError && (
         <div style={{

@@ -846,6 +846,22 @@
   }
 }
 
+.meta-sub-uri {
+  font-size: 11px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+  display: block;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+[data-theme="light"] .meta-sub-uri {
+  color: #64748b;
+}
+
 /* Action Buttons Toolbar */
 .main-call-actions-row {
   display: grid;

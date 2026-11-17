@@ -304,17 +304,17 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
     if (isChatCleared) {
       return [];
     }
+    let rawList = [];
     if (conversationHistory && conversationHistory.length > 0) {
-      return conversationHistory.map(m => ({
+      rawList = conversationHistory.map(m => ({
         ...m,
         timestamp: formatCallTime(m.timestamp)
       }));
-    }
-    if (dbCall?.messages) {
+    } else if (dbCall?.messages) {
       try {
         const parsed = typeof dbCall.messages === "string" ? JSON.parse(dbCall.messages) : dbCall.messages;
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((m, idx) => {
+          rawList = parsed.map((m, idx) => {
             const isCust = m.role === "user" || m.role === "customer" || m.speaker === "customer";
             return {
               id: `db_${idx}`,
@@ -332,7 +332,36 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
         console.warn("Failed to parse dbCall.messages:", e);
       }
     }
-    return [];
+
+    // Deduplicate consecutive identical messages for same speaker to avoid duplicate greeting display
+    const deduplicated = [];
+    for (const item of rawList) {
+      const cleanText = (item.text || "").trim();
+      if (!cleanText) continue;
+      const last = deduplicated[deduplicated.length - 1];
+      const isAiCurrent = Boolean(
+        item.role === "assistant" ||
+        item.role === "ai" ||
+        item.role === "model" ||
+        item.speaker === "ai" ||
+        item.speaker === "assistant" ||
+        item.source === "AI"
+      );
+      const isAiLast = last ? Boolean(
+        last.role === "assistant" ||
+        last.role === "ai" ||
+        last.role === "model" ||
+        last.speaker === "ai" ||
+        last.speaker === "assistant" ||
+        last.source === "AI"
+      ) : false;
+
+      if (last && isAiCurrent === isAiLast && last.text.trim().toLowerCase() === cleanText.toLowerCase()) {
+        continue;
+      }
+      deduplicated.push(item);
+    }
+    return deduplicated;
   }, [isChatCleared, conversationHistory, dbCall?.messages, dbCall?.created_at]);
 
   // Duration Timer (Live incrementing clock, parsed dbCall duration, or 00:00:00)
@@ -653,6 +682,11 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
                     <span className={`sip-status-dot ${isSipConnected ? "dot-connected" : "dot-disconnected"}`} />
                     {isSipConnected ? "Connected" : "Not Connected"}
                   </strong>
+                  {cleanSipTrunk ? (
+                    <span className="meta-sub-uri" title={cleanSipTrunk}>
+                      {cleanSipTrunk}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -777,7 +811,16 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
             <div className="conversation-messages-scroll" ref={dialogueStreamRef}>
               {displayHistory.length > 0 ? (
                 displayHistory.map((item, index) => {
-                  const isAi = item.role === "assistant" || item.role === "ai" || item.source === "AI" || item.speaker === "ai";
+                  const isAi = Boolean(
+                    item.role === "assistant" ||
+                    item.role === "ai" ||
+                    item.role === "model" ||
+                    item.role === "system" ||
+                    item.speaker === "ai" ||
+                    item.speaker === "assistant" ||
+                    item.source === "AI" ||
+                    (item.audio_source && item.audio_source.startsWith("AI"))
+                  );
                   return (
                     <div
                       key={item.id || item.utterance_id || index}
