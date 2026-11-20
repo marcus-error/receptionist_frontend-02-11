@@ -3,6 +3,104 @@ import Badge from "../../components/ui/Badge.jsx";
 import API_BASE_URL from "../../config/api.js";
 import { knowledgeService } from "../../services/knowledge.service.js";
 
+function cleanAndDeduplicateResponse(text) {
+  if (!text || typeof text !== "string") return "";
+  let clean = text.trim();
+
+  // 1. Direct duplicate paragraph collapse: e.g. "Sentence A. Sentence B. Sentence A. Sentence B."
+  const half = Math.floor(clean.length / 2);
+  for (let split = Math.max(10, half - 20); split <= Math.min(clean.length - 10, half + 20); split++) {
+    const left = clean.substring(0, split).trim();
+    const right = clean.substring(split).trim();
+    if (left && right && left.toLowerCase() === right.toLowerCase()) {
+      clean = left;
+      break;
+    }
+  }
+
+  // 2. Multi-sentence block collapse (blocks of 20+ chars that repeat consecutively)
+  let cleanLen = clean.length;
+  for (let len = Math.floor(cleanLen / 2); len >= 20; len--) {
+    for (let start = 0; start <= cleanLen - 2 * len; start++) {
+      const b1 = clean.substring(start, start + len).trim();
+      const b2 = clean.substring(start + len, start + 2 * len).trim();
+      if (b1.length >= 20 && b1.toLowerCase() === b2.toLowerCase()) {
+        clean = clean.substring(0, start + len) + clean.substring(start + 2 * len);
+        cleanLen = clean.length;
+        break;
+      }
+    }
+  }
+
+  // 3. Sentence-level deduplication across the message with substring containment
+  const sentenceMatches = clean.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [];
+  const seenNorm = [];
+  const dedupedSentences = [];
+
+  for (const s of sentenceMatches) {
+    const norm = s.toLowerCase().replace(/[^\w\s]/g, "").trim().replace(/\s+/g, " ");
+    if (!norm) continue;
+
+    // Don't deduplicate tiny phrases like 'yes.', 'okay.'
+    if (norm.split(" ").length <= 2 && norm.length < 10) {
+      dedupedSentences.push(s);
+      continue;
+    }
+
+    let isDup = false;
+    let replaceIdx = null;
+    for (let idx = 0; idx < seenNorm.length; idx++) {
+      const seen = seenNorm[idx];
+      if (norm === seen) {
+        isDup = true;
+        break;
+      }
+      if (norm.length >= 15 && seen.length >= 15) {
+        if (seen.includes(norm)) {
+          isDup = true;
+          break;
+        } else if (norm.includes(seen)) {
+          if (seen.split(" ").length <= 5 && norm.split(" ").length > seen.split(" ").length) {
+            replaceIdx = idx;
+            break;
+          } else {
+            isDup = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (isDup) continue;
+
+    if (replaceIdx !== null) {
+      seenNorm[replaceIdx] = norm;
+      dedupedSentences[replaceIdx] = s;
+      continue;
+    }
+
+    seenNorm.push(norm);
+    dedupedSentences.push(s);
+  }
+
+  const finalResult = dedupedSentences.join(" ").replace(/\s+([.!?])/g, "$1").replace(/\s+/g, " ").trim();
+  return finalResult || clean;
+}
+
+const LANG_CODE_TO_STT = {
+  ta: "ta-IN",
+  "ta-IN": "ta-IN",
+  hi: "hi-IN",
+  "hi-IN": "hi-IN",
+  te: "te-IN",
+  "te-IN": "te-IN",
+  kn: "kn-IN",
+  "kn-IN": "kn-IN",
+  en: "en-IN",
+  "en-IN": "en-IN",
+  "en-US": "en-US",
+};
+
 export default function Voice() {
   const [callData, setCallData] = useState({
     caller_said: "",
@@ -41,6 +139,14 @@ export default function Voice() {
   const lastAiSpeechEndedTimeRef = useRef(0);
   const acousticGuardTimeoutRef = useRef(null);
 
+  // Turn and Message Idempotency Tracking
+  const processedEventsRef = useRef(new Set());
+  const currentMessageIdRef = useRef(null);
+  const isStreamingActiveRef = useRef(false);
+  const playedAudioMessageIdsRef = useRef(new Set());
+  const lastSentTranscriptRef = useRef("");
+  const lastSentTimeRef = useRef(0);
+
   // Audio Chunk Playback Queue
   const audioQueueRef = useRef([]);
   const isPlayingQueueRef = useRef(false);
@@ -54,6 +160,13 @@ export default function Voice() {
   useEffect(() => {
     isOnHoldRef.current = isOnHold;
   }, [isOnHold]);
+
+  // Stage G Diagnostic Logging: Text displayed in the AI Receptionist section
+  useEffect(() => {
+    if (callData.ai_response) {
+      console.log(`[DIAG_STAGE_G_DISPLAYED_TEXT] text_len=${callData.ai_response.length} text="${callData.ai_response}"`);
+    }
+  }, [callData.ai_response]);
 
   const stopAudioPlayback = () => {
     audioQueueRef.current = [];
@@ -134,6 +247,8 @@ export default function Voice() {
     const handoffMsg = "I would like to speak to a human receptionist or representative please.";
     const utteranceId = `handoff_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     setVoiceState("PROCESSING");
+    isStreamingActiveRef.current = false;
+    currentMessageIdRef.current = null;
     setCallData(prev => ({ ...prev, ai_response: "", caller_said: handoffMsg }));
     wsRef.current.send(JSON.stringify({ text: handoffMsg, utterance_id: utteranceId }));
   };
@@ -358,6 +473,16 @@ export default function Voice() {
     const connectWebSocket = () => {
       if (!isSubscribed) return;
 
+      // Clean up previous connection if any
+      if (wsRef.current) {
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onclose = null;
+        try { wsRef.current.close(); } catch (e) {}
+        wsRef.current = null;
+      }
+
       let rawToken = localStorage.getItem("token") || "";
       let token = rawToken.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1").replace(/^Bearer\s+/i, "").trim();
       if (token === "null" || token === "undefined") token = "";
@@ -382,6 +507,20 @@ export default function Voice() {
       ws.onmessage = (event) => {
         if (!isSubscribed) return;
         const data = JSON.parse(event.data);
+
+        // Turn-level / Message-level event deduplication
+        const eventKey = `${data.type}_${data.message_id || ''}_${data.chunk_index ?? ''}_${data.text || ''}`;
+        if (data.message_id && processedEventsRef.current.has(eventKey)) {
+          console.warn("[EVENT DEDUP] Dropping duplicate WebSocket event:", eventKey);
+          return;
+        }
+        if (data.message_id) {
+          processedEventsRef.current.add(eventKey);
+          if (processedEventsRef.current.size > 200) {
+            const arr = Array.from(processedEventsRef.current);
+            processedEventsRef.current = new Set(arr.slice(arr.length - 100));
+          }
+        }
 
         if (data.type === "rag_bound") {
           const hasActive = data.has_active !== false && data.title && data.title !== "No Active Document" && data.title !== "None";
@@ -436,10 +575,33 @@ export default function Voice() {
           isRecordingRef.current = false;
           setVoiceState("IDLE");
           stopAudioPlayback();
+        } else if (data.type === "language_changed") {
+          const targetStt = data.stt_lang || LANG_CODE_TO_STT[data.language] || "en-IN";
+          console.log(`[STT_SYNC] Language changed to: ${data.language} -> STT: ${targetStt}`);
+          setSttLang(targetStt);
+          if (recognitionRef.current && recognitionRef.current.lang !== targetStt) {
+            recognitionRef.current.lang = targetStt;
+            if (isRecordingRef.current && isRecognitionActiveRef.current) {
+              try { recognitionRef.current.stop(); } catch (err) {}
+            }
+          }
         } else if (data.type === "transcription") {
           setCallData(prev => ({ ...prev, caller_said: data.text }));
         } else if (data.type === "analysis") {
           setCallData(prev => ({ ...prev, intent: data.intent, emotion: data.emotion }));
+          if (data.language) {
+            const mappedStt = LANG_CODE_TO_STT[data.language];
+            if (mappedStt && mappedStt !== sttLang) {
+              console.log(`[STT_SYNC] Analysis language updated to: ${data.language} -> STT: ${mappedStt}`);
+              setSttLang(mappedStt);
+              if (recognitionRef.current && recognitionRef.current.lang !== mappedStt) {
+                recognitionRef.current.lang = mappedStt;
+                if (isRecordingRef.current && isRecognitionActiveRef.current) {
+                  try { recognitionRef.current.stop(); } catch (err) {}
+                }
+              }
+            }
+          }
         } else if (data.type === "rag") {
           setCallData(prev => ({
             ...prev,
@@ -447,31 +609,66 @@ export default function Voice() {
           }));
         } else if (data.type === "text_chunk") {
           if (data.text) {
-            setCallData(prev => ({
-              ...prev,
-              ai_response: (prev.ai_response || "") + data.text
-            }));
+            isStreamingActiveRef.current = true;
+            const chunkPreview = data.text.length > 50 ? `${data.text.substring(0, 50)}...` : data.text;
+            console.log(`[DIAG_STAGE_E_WS_PAYLOAD] event_type=text_chunk message_id=${data.message_id || ''} turn_id=${data.turn_id || ''} text_len=${data.text.length} text="${chunkPreview}"`);
+            if (data.message_id && data.message_id !== currentMessageIdRef.current) {
+              currentMessageIdRef.current = data.message_id;
+              setCallData(prev => {
+                console.log(`[DIAG_STAGE_F_ASSISTANT_STATE] event_type=text_chunk_reset message_id=${data.message_id} text_len=${data.text.length}`);
+                return {
+                  ...prev,
+                  ai_response: data.text
+                };
+              });
+            } else {
+              setCallData(prev => {
+                const updated = (prev.ai_response || "") + data.text;
+                console.log(`[DIAG_STAGE_F_ASSISTANT_STATE] event_type=text_chunk_append message_id=${data.message_id} total_len=${updated.length}`);
+                return {
+                  ...prev,
+                  ai_response: updated
+                };
+              });
+            }
           }
         } else if (data.type === "response") {
-          setCallData(prev => ({ ...prev, ai_response: data.text }));
+          isStreamingActiveRef.current = false;
+          if (data.message_id) {
+            currentMessageIdRef.current = data.message_id;
+          }
+          const cleanText = cleanAndDeduplicateResponse(data.text || "");
+          console.log(`[DIAG_STAGE_E_WS_PAYLOAD] event_type=response message_id=${data.message_id || ''} turn_id=${data.turn_id || ''} text_len=${cleanText.length} text="${cleanText.substring(0, 60)}..."`);
+          setCallData(prev => {
+            console.log(`[DIAG_STAGE_F_ASSISTANT_STATE] event_type=response_finalize message_id=${data.message_id} text_len=${cleanText.length}`);
+            return { ...prev, ai_response: cleanText };
+          });
         } else if (data.type === "audio_chunk") {
+          console.log(`[DIAG_STAGE_E_WS_PAYLOAD] event_type=audio_chunk chunk_index=${data.chunk_index ?? ''} has_audio=${Boolean(data.audio)} text_len=${(data.text || '').length}`);
           if (data.audio) {
             enqueueAudio(data.audio);
           }
-          if (data.text) {
-            setCallData(prev => ({
-              ...prev,
-              ai_response: prev.ai_response ? `${prev.ai_response} ${data.text}` : data.text
-            }));
-          }
         } else if (data.type === "audio") {
+          const audioMsgId = data.message_id || data.text;
+          if (audioMsgId && playedAudioMessageIdsRef.current.has(audioMsgId)) {
+            console.warn("[AUDIO DEDUP] Audio for message already played/enqueued:", audioMsgId);
+            return;
+          }
+          if (audioMsgId) {
+            playedAudioMessageIdsRef.current.add(audioMsgId);
+            if (playedAudioMessageIdsRef.current.size > 100) {
+              const arr = Array.from(playedAudioMessageIdsRef.current);
+              playedAudioMessageIdsRef.current = new Set(arr.slice(arr.length - 50));
+            }
+          }
           if (data.audio) {
             playContinuousAudio(data.audio);
           }
           if (data.text) {
+            const cleanAudioText = cleanAndDeduplicateResponse(data.text || "");
             setCallData(prev => ({
               ...prev,
-              ai_response: data.text
+              ai_response: cleanAudioText
             }));
           }
         } else if (data.type === "hold_ack") {
@@ -538,9 +735,22 @@ export default function Voice() {
 
         const transcript = lastResult[0].transcript ? lastResult[0].transcript.trim() : "";
         const confidence = (typeof lastResult[0].confidence === "number") ? lastResult[0].confidence : 1.0;
+
+        // Turn-level debounce for identical speech captured in rapid succession (<1500ms)
+        const normTranscript = transcript.toLowerCase().trim();
+        const now = Date.now();
+        if (normTranscript && normTranscript === lastSentTranscriptRef.current && (now - lastSentTimeRef.current) < 1500) {
+          console.warn("[FRONTEND DEBOUNCE] Dropped duplicate speech recognition result (<1500ms):", transcript);
+          return;
+        }
+
         if (transcript && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          const utteranceId = `utt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          lastSentTranscriptRef.current = normTranscript;
+          lastSentTimeRef.current = now;
+          const utteranceId = `utt_${now}_${Math.random().toString(36).substring(2, 8)}`;
           setVoiceState("PROCESSING");
+          isStreamingActiveRef.current = false;
+          currentMessageIdRef.current = null;
           setCallData(prev => ({ ...prev, ai_response: "", caller_said: transcript }));
           wsRef.current.send(JSON.stringify({ text: transcript, utterance_id: utteranceId, confidence }));
         }
@@ -577,10 +787,22 @@ export default function Voice() {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (acousticGuardTimeoutRef.current) clearTimeout(acousticGuardTimeoutRef.current);
       stopAudioPlayback();
-      if (wsRef.current) wsRef.current.close();
+      if (wsRef.current) {
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onclose = null;
+        try { wsRef.current.close(); } catch (e) {}
+        wsRef.current = null;
+      }
       if (recognitionRef.current) {
         isRecordingRef.current = false;
-        try { recognitionRef.current.stop(); } catch (e) {}
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        try { recognitionRef.current.abort(); } catch (e) {}
+        recognitionRef.current = null;
       }
     };
   }, []);
@@ -596,6 +818,9 @@ export default function Voice() {
           recognitionRef.current.stop();
         } catch (err) {}
       }
+    }
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "set_language", language: newLang }));
     }
   };
 
@@ -654,7 +879,8 @@ export default function Voice() {
       let token = rawToken.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1").replace(/^Bearer\s+/i, "").trim();
       wsRef.current.send(JSON.stringify({
         type: "start_call",
-        token: token
+        token: token,
+        language: sttLang
       }));
     }
   };
@@ -673,6 +899,8 @@ export default function Voice() {
       isRecordingRef.current = true;
     }
     setVoiceState("PROCESSING");
+    isStreamingActiveRef.current = false;
+    currentMessageIdRef.current = null;
     setCallData(prev => ({ ...prev, ai_response: "", caller_said: userMsg }));
     wsRef.current.send(JSON.stringify({ text: userMsg, utterance_id: utteranceId }));
     setTextInput("");
@@ -744,6 +972,10 @@ export default function Voice() {
             }}
           >
             <option value="en-IN">English (India) - en-IN</option>
+            <option value="ta-IN">Tamil (India) - ta-IN</option>
+            <option value="hi-IN">Hindi (India) - hi-IN</option>
+            <option value="te-IN">Telugu (India) - te-IN</option>
+            <option value="kn-IN">Kannada (India) - kn-IN</option>
             <option value="en-US">English (US) - en-US</option>
           </select>
         </div>

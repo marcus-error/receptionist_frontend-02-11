@@ -17,6 +17,9 @@ let _audioCtx = null;
 let _audioQueue = [];
 let _isPlaying = false;
 let _nextCustomerPlayTime = 0;
+let _nextAiPlayTime = 0;
+let _currentAiHtml5Audio = null;
+const _playedAiAudioHashes = new Set();
 
 function getAudioCtx() {
   if (!_audioCtx && typeof window !== "undefined") {
@@ -134,11 +137,27 @@ export async function playAiAudioChunk(base64Str, mimeType = "audio/wav") {
       gainNode.gain.value = 1.6;
       source.connect(gainNode);
       gainNode.connect(ctx.destination);
-      source.start(0);
-      console.log(`[AUDIO_MONITOR_PLAY] source=AI bytes=${base64Str.length}`);
+
+      const now = ctx.currentTime;
+      if (_nextAiPlayTime < now) {
+        _nextAiPlayTime = now + 0.025; // 25ms initial jitter buffer
+      }
+      source.start(_nextAiPlayTime);
+      _nextAiPlayTime += audioBuffer.duration;
+      console.log(`[AUDIO_MONITOR_PLAY] source=AI scheduled_at=${_nextAiPlayTime.toFixed(2)} duration=${audioBuffer.duration.toFixed(2)} bytes=${base64Str.length}`);
     } else {
+      if (_currentAiHtml5Audio) {
+        try {
+          _currentAiHtml5Audio.pause();
+          _currentAiHtml5Audio = null;
+        } catch (_) {}
+      }
       const el = new Audio(`data:${mimeType};base64,${base64Str}`);
+      _currentAiHtml5Audio = el;
       el.volume = 1.0;
+      el.onended = () => {
+        if (_currentAiHtml5Audio === el) _currentAiHtml5Audio = null;
+      };
       await el.play().catch(e => console.warn("[AI Audio HTML5 fallback play error]:", e));
       console.log(`[AUDIO_MONITOR_PLAY] source=AI (HTML5) bytes=${base64Str.length}`);
     }
@@ -711,10 +730,25 @@ export function CallProvider({ children }) {
       const isAi = (
         data.source === "AI" ||
         data.speaker === "ai" ||
+        data.role === "assistant" ||
         data.audio_source === "AI_TTS" ||
         data.audio_source === "AI_TTS_MONITOR"
       );
       if (!isAi) return; // Strictly ignore customer voice on laptop speakers
+
+      // Chunk deduplication to avoid double playback
+      const chunkHash = data.utterance_id
+        ? `${data.utterance_id}_${data.audio_base64.slice(0, 32)}_${data.audio_base64.length}`
+        : `${data.audio_base64.slice(0, 32)}_${data.audio_base64.length}`;
+      if (_playedAiAudioHashes.has(chunkHash)) {
+        console.log(`[AUDIO_MONITOR_PLAY] Suppressed duplicate AI chunk ${chunkHash}`);
+        return;
+      }
+      _playedAiAudioHashes.add(chunkHash);
+      if (_playedAiAudioHashes.size > 200) {
+        const firstKey = _playedAiAudioHashes.values().next().value;
+        _playedAiAudioHashes.delete(firstKey);
+      }
 
       unlockAudioContext();
       if (data?.text) setLatestUtterance(data.text);
@@ -759,6 +793,12 @@ export function CallProvider({ children }) {
       _audioQueue = [];
       _isPlaying = false;
       _nextCustomerPlayTime = 0;
+      _nextAiPlayTime = 0;
+      if (_currentAiHtml5Audio) {
+        try { _currentAiHtml5Audio.pause(); } catch (_) {}
+        _currentAiHtml5Audio = null;
+      }
+      _playedAiAudioHashes.clear();
       setActiveCall(null);
     };
 
@@ -773,6 +813,12 @@ export function CallProvider({ children }) {
       _audioQueue = [];
       _isPlaying = false;
       _nextCustomerPlayTime = 0;
+      _nextAiPlayTime = 0;
+      if (_currentAiHtml5Audio) {
+        try { _currentAiHtml5Audio.pause(); } catch (_) {}
+        _currentAiHtml5Audio = null;
+      }
+      _playedAiAudioHashes.clear();
     };
   }, [navigate]);
 
