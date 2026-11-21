@@ -166,13 +166,46 @@ export async function playAiAudioChunk(base64Str, mimeType = "audio/wav") {
   }
 }
 
+// ── Clean & Decode HTML Entities & Normalize Whitespace ────────
+export function decodeTranscriptHtmlEntities(str) {
+  if (!str) return "";
+  let text = String(str);
+  // Decode hex and decimal entities like &#x20;, &#32;, &nbsp;
+  text = text.replace(/&#x20;?/gi, " ");
+  text = text.replace(/&#32;?/gi, " ");
+  text = text.replace(/&nbsp;?/gi, " ");
+  text = text.replace(/&#39;/g, "'");
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&amp;/g, "&");
+  text = text.replace(/&lt;/g, "<");
+  text = text.replace(/&gt;/g, ">");
+  text = text.replace(/[\u00a0\xa0]/g, " ");
+
+  // In-browser HTML entity decoder fallback
+  try {
+    if (typeof DOMParser !== "undefined") {
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      text = doc.body.textContent || "";
+    }
+  } catch (e) {
+    // fallback to regex-replaced text
+  }
+
+  // Collapse multiple whitespace chars (spaces, tabs, newlines)
+  text = text.replace(/[ \t\r\n]+/g, " ");
+  // Clean space before punctuation
+  text = text.replace(/\s+([,.:;?!])/g, "$1");
+  return text.trim();
+}
+
 // ── Normalized Live Call Event Parser (Metadata-Driven) ────────
 export function normalizeLiveCallEvent(data) {
   if (!data) return null;
   const call_id = data.call_id || data.call_sid || "";
   const utterance_id = data.utterance_id || "";
   const event_type = data.type || data.event_type || "";
-  const text = (data.text || "").trim();
+  const rawText = data.text || "";
+  const text = decodeTranscriptHtmlEntities(rawText);
   if (!text) return null;
 
   // Metadata-driven speaker mapping strictly from event properties

@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import Badge from "../../components/ui/Badge.jsx";
 import callService from "../../services/call.service.js";
 import telephonyService from "../../services/telephony.service.js";
-import { useCall } from "../../context/CallContext.jsx";
+import { useCall, decodeTranscriptHtmlEntities } from "../../context/CallContext.jsx";
 import useAuth from "../../hooks/useAuth.js";
 import api from "../../services/api.js";
 import {
@@ -336,7 +336,7 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
     // Deduplicate consecutive identical messages for same speaker to avoid duplicate greeting display
     const deduplicated = [];
     for (const item of rawList) {
-      const cleanText = (item.text || "").trim();
+      const cleanText = decodeTranscriptHtmlEntities(item.text || "");
       if (!cleanText) continue;
       const last = deduplicated[deduplicated.length - 1];
       const isAiCurrent = Boolean(
@@ -850,7 +850,7 @@ export default function LiveCall({ isDemo: isDemoProp = false }) {
                           </span>
                         </div>
                         <p className="bubble-text-content">
-                          {item.text}
+                          {decodeTranscriptHtmlEntities(item.text)}
                         </p>
                       </div>
                     </div>

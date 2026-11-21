@@ -7,11 +7,88 @@ import BlockTimeModal from "../../components/modals/BlockTimeModal.jsx";
 import useApi from "../../hooks/useApi.js";
 import staffService from "../../services/staff.service.js";
 import appointmentsService from "../../services/appointments.service.js";
-import { getCalendarEvents, getCalendarConfig, getGoogleAuthUrl, disconnectGoogle } from "../../services/calendar.service.js";
+import { 
+  getCalendarEvents, 
+  getCalendarConfig, 
+  getGoogleAuthUrl, 
+  disconnectGoogle,
+  getBlockedTimes,
+  createBlockedTime,
+  deleteBlockedTime
+} from "../../services/calendar.service.js";
 import { useCall } from "../../context/CallContext.jsx";
 import { useNavigate } from "react-router-dom";
 
 const localizer = momentLocalizer(moment);
+
+const AgendaEventBadge = ({ event, title }) => {
+  const type = event?.resource?.eventType || (event?.isBlocked ? "blocked" : "booked");
+  const isBlocked = type === "blocked";
+  const isLeave = type === "leave";
+  const isAvailable = type === "available";
+  const isGoogle = type === "google";
+
+  const getBadgeStyle = () => {
+    if (isBlocked) {
+      return {
+        backgroundColor: "var(--danger-bg)",
+        color: "var(--danger)",
+        border: "1px solid var(--danger-border)"
+      };
+    }
+    if (isLeave) {
+      return {
+        backgroundColor: "var(--badge-yellow-bg)",
+        color: "var(--badge-yellow-fg)",
+        border: "1px solid var(--badge-yellow-border, rgba(245, 158, 11, 0.3))"
+      };
+    }
+    if (isGoogle) {
+      return {
+        backgroundColor: "var(--badge-google-bg)",
+        color: "var(--badge-google-fg)",
+        border: "1px solid var(--badge-google-border)"
+      };
+    }
+    if (isAvailable) {
+      return {
+        backgroundColor: "var(--badge-green-bg)",
+        color: "var(--badge-green-fg)",
+        border: "1px solid rgba(22, 101, 52, 0.3)"
+      };
+    }
+    return {
+      backgroundColor: "var(--badge-blue-bg)",
+      color: "var(--badge-blue-fg)",
+      border: "1px solid var(--badge-blue-border)"
+    };
+  };
+
+  const displayText = title || event?.title || "Appointment";
+
+  return (
+    <span
+      className={`agenda-event-badge agenda-badge-${type}`}
+      style={{
+        ...getBadgeStyle(),
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "5px 12px",
+        borderRadius: "6px",
+        fontWeight: "600",
+        fontSize: "0.85rem",
+        lineHeight: "1.35",
+        maxWidth: "100%",
+        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+        cursor: "pointer",
+        whiteSpace: "normal",
+        wordBreak: "break-word"
+      }}
+    >
+      {displayText}
+    </span>
+  );
+};
 
 export default function CalendarPage() {
   const { data: staffList } = useApi(staffService.getAll, [], []);
@@ -36,9 +113,10 @@ export default function CalendarPage() {
   const loadData = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const [apptsData, cfg] = await Promise.allSettled([
+      const [apptsData, cfg, blockedData] = await Promise.allSettled([
         appointmentsService.getAll(),
-        getCalendarConfig()
+        getCalendarConfig(),
+        getBlockedTimes(),
       ]);
 
       if (apptsData.status === "fulfilled" && apptsData.value) {
@@ -52,6 +130,26 @@ export default function CalendarPage() {
 
       const activeCfg = cfg.status === "fulfilled" ? cfg.value : null;
       setCalendarConfig(activeCfg);
+
+      if (blockedData.status === "fulfilled" && Array.isArray(blockedData.value)) {
+        const mappedBlocks = blockedData.value.map((b) => ({
+          id: `block-${b.id}`,
+          backendId: b.id,
+          title: `⛔ BLOCKED: ${b.staff_name || "All Staff"}${b.reason ? ` (${b.reason})` : ""}`,
+          start: new Date(b.start_datetime),
+          end: new Date(b.end_datetime),
+          isBlocked: true,
+          resource: {
+            eventType: "blocked",
+            id: b.id,
+            staff: b.staff_name || "All Staff",
+            reason: b.reason || "Blocked slot",
+            start_datetime: b.start_datetime,
+            end_datetime: b.end_datetime,
+          }
+        }));
+        setBlockedEvents(mappedBlocks);
+      }
 
       if (activeCfg && activeCfg.connected === "connected") {
         const start = moment(currentDate).startOf("month").subtract(7, "days").toISOString();
@@ -87,23 +185,29 @@ export default function CalendarPage() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  // Real-time synchronization when inbound AI call schedules an appointment
+  // Real-time synchronization when inbound AI call or user updates appointments/block times
   useEffect(() => {
     if (!socket) return;
 
-    const handleAppointmentEvent = (payload) => {
-      console.log("[Calendar] Received real-time appointment event:", payload);
+    const handleCalendarUpdate = (payload) => {
+      console.log("[Calendar] Received real-time update event:", payload);
       loadData();
     };
 
-    socket.on("appointment_created", handleAppointmentEvent);
-    socket.on("appointment_updated", handleAppointmentEvent);
-    socket.on("appointment_cancelled", handleAppointmentEvent);
+    socket.on("appointment_created", handleCalendarUpdate);
+    socket.on("appointment_updated", handleCalendarUpdate);
+    socket.on("appointment_cancelled", handleCalendarUpdate);
+    socket.on("block_time_created", handleCalendarUpdate);
+    socket.on("block_time_updated", handleCalendarUpdate);
+    socket.on("block_time_deleted", handleCalendarUpdate);
 
     return () => {
-      socket.off("appointment_created", handleAppointmentEvent);
-      socket.off("appointment_updated", handleAppointmentEvent);
-      socket.off("appointment_cancelled", handleAppointmentEvent);
+      socket.off("appointment_created", handleCalendarUpdate);
+      socket.off("appointment_updated", handleCalendarUpdate);
+      socket.off("appointment_cancelled", handleCalendarUpdate);
+      socket.off("block_time_created", handleCalendarUpdate);
+      socket.off("block_time_updated", handleCalendarUpdate);
+      socket.off("block_time_deleted", handleCalendarUpdate);
     };
   }, [socket, loadData]);
 
@@ -186,26 +290,56 @@ export default function CalendarPage() {
 
   const staffNames = [...new Set((staffList || []).map(s => s.name).filter(Boolean))];
 
-  const handleBlockTime = (blockData) => {
-    // Add blocked time to local state for demo purposes
-    // Note: The previous modal implementation likely passes simple values. 
-    // We mock a duration here.
-    const start = blockData.date ? moment(blockData.date).toDate() : new Date();
-    const end = moment(start).add(1, 'hour').toDate(); // Default 1 hour block
-    
-    const newBlock = {
-      id: `block-${Date.now()}`,
-      title: `BLOCKED: ${blockData.staff} ${blockData.reason ? "("+blockData.reason+")" : ""}`,
-      start,
-      end,
-      isBlocked: true
-    };
-    
-    setBlockedEvents(prev => [...prev, newBlock]);
+  const handleBlockTime = async (blockData) => {
+    try {
+      setIsSyncing(true);
+      await createBlockedTime({
+        staff: blockData.staff,
+        date: blockData.date,
+        startTime: blockData.startTime,
+        endTime: blockData.endTime,
+        reason: blockData.reason || "Blocked time slot"
+      });
+      await loadData();
+    } catch (err) {
+      console.error("Failed to persist blocked time slot:", err);
+      const detail = err?.response?.data?.detail || "Failed to block time slot on calendar.";
+      alert(detail);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleDeleteBlockedTime = async (blockId) => {
+    if (!blockId) return;
+    try {
+      setIsSyncing(true);
+      await deleteBlockedTime(blockId);
+      setSelectedEvent(null);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to delete blocked time slot:", err);
+      alert("Failed to unblock time slot.");
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const eventStyleGetter = (event) => {
     const type = event.resource?.eventType || (event.isBlocked ? "blocked" : "booked");
+
+    // In agenda view, react-big-calendar assigns eventPropGetter.style directly to the <tr> element.
+    // Setting display: 'block' or card background on <tr> destroys the browser's HTML table layout engine,
+    // which causes rowSpan on the date cell to fail and collapses rows into the wrong columns (alignment bug).
+    if (calendarView === "agenda") {
+      return {
+        className: `agenda-table-row agenda-row-${type}`,
+        style: {
+          cursor: "pointer"
+        }
+      };
+    }
+
     const isBlocked = type === "blocked";
     const isLeave = type === "leave";
     const isAvailable = type === "available";
@@ -218,7 +352,7 @@ export default function CalendarPage() {
         : isAvailable 
         ? "var(--badge-green-bg)" 
         : isGoogle
-        ? "#f3e8ff"
+        ? "var(--badge-google-bg)"
         : "var(--badge-blue-bg)",
       color: isBlocked 
         ? "var(--danger)" 
@@ -227,25 +361,36 @@ export default function CalendarPage() {
         : isAvailable 
         ? "var(--badge-green-fg)" 
         : isGoogle
-        ? "#7e22ce"
+        ? "var(--badge-google-fg)"
         : "var(--badge-blue-fg)",
       borderRadius: '6px',
       border: isBlocked 
         ? "1px solid var(--danger-border)" 
         : isLeave 
-        ? "1px solid rgba(245, 158, 11, 0.3)" 
+        ? "1px solid var(--badge-yellow-border, rgba(245, 158, 11, 0.3))" 
         : isAvailable 
         ? "1px solid rgba(22, 101, 52, 0.3)" 
         : isGoogle
-        ? "1px solid #c084fc"
-        : "1px solid rgba(7, 89, 133, 0.3)",
-      padding: '3px 8px',
-      fontWeight: '700',
-      fontSize: '0.85em',
+        ? "1px solid var(--badge-google-border)"
+        : "1px solid var(--badge-blue-border)",
+      padding: '4px 8px',
+      fontWeight: '600',
+      fontSize: '0.82em',
       display: 'block'
     };
-    return { style };
+    return {
+      className: `event-${type}`,
+      style
+    };
   };
+
+  const dayPropGetter = useCallback((date) => {
+    return {
+      style: {
+        backgroundColor: "var(--panel)",
+      },
+    };
+  }, []);
 
   const goToday = () => {
     const now = new Date();
@@ -267,12 +412,56 @@ export default function CalendarPage() {
       const nextDate = moment(currentDate).add(amount, "week").toDate();
       setCurrentDate(nextDate);
       setSelectedYear(nextDate.getFullYear());
+    } else if (calendarView === "agenda") {
+      const nextDate = moment(currentDate).add(amount * 30, "days").toDate();
+      setCurrentDate(nextDate);
+      setSelectedYear(nextDate.getFullYear());
     } else {
       const nextDate = moment(currentDate).add(amount, "month").toDate();
       setCurrentDate(nextDate);
       setSelectedYear(nextDate.getFullYear());
     }
   };
+
+  const currentTitle = useMemo(() => {
+    const m = moment(currentDate);
+    if (calendarView === "year") {
+      return `Year Overview — ${selectedYear}`;
+    }
+    if (calendarView === "month") {
+      return m.format("MMMM YYYY");
+    }
+    if (calendarView === "week") {
+      const startOfWeek = m.clone().startOf("week");
+      const endOfWeek = m.clone().endOf("week");
+      if (startOfWeek.month() === endOfWeek.month()) {
+        return `${startOfWeek.format("MMM D")} – ${endOfWeek.format("D, YYYY")}`;
+      }
+      return `${startOfWeek.format("MMM D")} – ${endOfWeek.format("MMM D, YYYY")}`;
+    }
+    if (calendarView === "day") {
+      return m.format("dddd, MMMM D, YYYY");
+    }
+    if (calendarView === "agenda") {
+      const endAgenda = m.clone().add(29, "days");
+      return `${m.format("MMM D, YYYY")} – ${endAgenda.format("MMM D, YYYY")}`;
+    }
+    return m.format("MMMM YYYY");
+  }, [currentDate, calendarView, selectedYear]);
+
+  const calendarFormats = useMemo(() => ({
+    dateFormat: "D",
+    dayFormat: "ddd D",
+    weekdayFormat: "ddd",
+    monthHeaderFormat: "MMMM YYYY",
+    dayHeaderFormat: "dddd, MMMM D, YYYY",
+    dayRangeHeaderFormat: ({ start, end }, culture, local) =>
+      `${local.format(start, "MMM D", culture)} – ${local.format(end, "MMM D, YYYY", culture)}`,
+    agendaDateFormat: "ddd MMM D",
+    agendaTimeFormat: "hh:mm A",
+    agendaTimeRangeFormat: ({ start, end }, culture, local) =>
+      `${local.format(start, "hh:mm A", culture)} – ${local.format(end, "hh:mm A", culture)}`
+  }), []);
 
   const navigate = useNavigate();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -292,7 +481,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <section id="calendar" className="page active" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <section id="calendar" className="page active" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: "calc(100vh - 120px)", width: "100%", paddingBottom: "24px" }}>
       {googleAuthError && (
         <div style={{
           background: "rgba(245, 158, 11, 0.15)",
@@ -383,71 +572,154 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: "15px", padding: "12px 16px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-          <button className="btn" onClick={() => changePeriod("prev")}>‹ Previous</button>
-          <button className="btn" onClick={goToday}>Today</button>
-          <button className="btn" onClick={() => changePeriod("next")}>Next ›</button>
+      <div className="calendar-container card" style={{ padding: "20px", display: "flex", flexDirection: "column", flex: 1, minHeight: "calc(100vh - 250px)", overflow: "visible", width: "100%", boxSizing: "border-box" }}>
+        {/* Unified Calendar Header & Controls */}
+        <div className="calendar-unified-toolbar">
+          {/* Row 1: Navigation, Current Title, View Switcher & Action */}
+          <div className="calendar-toolbar-row-top">
+            <div className="calendar-nav-group">
+              <button
+                type="button"
+                className="btn"
+                onClick={goToday}
+                style={{ fontWeight: "600", padding: "7px 14px" }}
+              >
+                Today
+              </button>
+              <div style={{ display: "inline-flex", borderRadius: "var(--radius-md)", border: "1px solid var(--line)" }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => changePeriod("prev")}
+                  style={{ border: "none", borderRight: "1px solid var(--line)", padding: "7px 13px", borderRadius: "0" }}
+                  title="Previous"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => changePeriod("next")}
+                  style={{ border: "none", padding: "7px 13px", borderRadius: "0" }}
+                  title="Next"
+                >
+                  ›
+                </button>
+              </div>
+              <h2 className="calendar-nav-title" style={{ margin: 0 }}>
+                {currentTitle}
+              </h2>
+            </div>
 
-          <select className="btn" style={{ width: "auto", minWidth: "110px" }} value={calendarView} onChange={e => setCalendarView(e.target.value)}>
-            <option value="month">Month</option>
-            <option value="week">Week</option>
-            <option value="day">Day</option>
-            <option value="agenda">Agenda</option>
-            <option value="year">Year</option>
-          </select>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <div className="calendar-view-tabs">
+                {[
+                  { id: "month", label: "Month" },
+                  { id: "week", label: "Week" },
+                  { id: "day", label: "Day" },
+                  { id: "agenda", label: "Agenda" },
+                  { id: "year", label: "Year" }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`calendar-view-tab ${calendarView === tab.id ? "active" : ""}`}
+                    onClick={() => setCalendarView(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-          <select className="btn" style={{ width: "auto", minWidth: "90px" }} value={selectedYear}
-            onChange={e => {
-              const y = Number(e.target.value);
-              setSelectedYear(y);
-              setCurrentDate(new Date(y, currentDate.getMonth(), 1));
-            }}>
-            {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 5 + i).map(y =>
-              <option key={y} value={y}>{y}</option>
-            )}
-          </select>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => setIsBlockModalOpen(true)}
+                style={{ fontWeight: "600", padding: "7px 16px" }}
+              >
+                + Block Time
+              </button>
+            </div>
+          </div>
 
-          <select className="btn" style={{ width: "auto", minWidth: "130px" }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
-            <option value="all">All Staff</option>
-            {staffNames.map(name => <option key={name} value={name}>{name}</option>)}
-          </select>
+          {/* Row 2: Filters on Left, Legend on Right */}
+          <div className="calendar-toolbar-row-bottom">
+            <div className="calendar-filters-group">
+              <select
+                className="btn"
+                style={{ width: "auto", minWidth: "130px", fontSize: "12px", padding: "5px 10px" }}
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+              >
+                <option value="all">All Staff</option>
+                {staffNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
 
-          <select className="btn" style={{ width: "auto", minWidth: "140px" }} value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)}>
-            <option value="all">All Departments</option>
-            {departments.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+              <select
+                className="btn"
+                style={{ width: "auto", minWidth: "140px", fontSize: "12px", padding: "5px 10px" }}
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+              >
+                <option value="all">All Departments</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
 
-          <select className="btn" style={{ width: "auto", minWidth: "160px" }} value={providerFilter} onChange={e => setProviderFilter(e.target.value)}>
-            {providers.map(p => <option key={p} value={p}>{p === "all" ? "All Calendar Providers" : p}</option>)}
-          </select>
+              <select
+                className="btn"
+                style={{ width: "auto", minWidth: "160px", fontSize: "12px", padding: "5px 10px" }}
+                value={providerFilter}
+                onChange={(e) => setProviderFilter(e.target.value)}
+              >
+                {providers.map((p) => (
+                  <option key={p} value={p}>{p === "all" ? "All Calendar Providers" : p}</option>
+                ))}
+              </select>
 
-          <button className="btn primary" style={{ marginLeft: "auto" }} onClick={() => setIsBlockModalOpen(true)}>+ Block Time</button>
+              {calendarView === "year" && (
+                <select
+                  className="btn"
+                  style={{ width: "auto", minWidth: "90px", fontSize: "12px", padding: "5px 10px" }}
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const y = Number(e.target.value);
+                    setSelectedYear(y);
+                    setCurrentDate(new Date(y, currentDate.getMonth(), 1));
+                  }}
+                >
+                  {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 5 + i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="calendar-legend-group">
+              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "9px", height: "9px", borderRadius: "50%", backgroundColor: "#38bdf8", display: "inline-block" }}></span>
+                Booked Appointments
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "9px", height: "9px", borderRadius: "50%", backgroundColor: "#c084fc", display: "inline-block" }}></span>
+                Google Calendar
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "9px", height: "9px", borderRadius: "50%", backgroundColor: "#ef4444", display: "inline-block" }}></span>
+                Blocked Slots
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "9px", height: "9px", borderRadius: "50%", backgroundColor: "#f59e0b", display: "inline-block" }}></span>
+                Leave
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="card" style={{ marginBottom: "15px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "20px", fontSize: "13px", fontWeight: "600" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#38bdf8", display: "inline-block" }}></span>
-            Booked Appointments
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#c084fc", display: "inline-block" }}></span>
-            Google Calendar Events
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#ef4444", display: "inline-block" }}></span>
-            Blocked Slots
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#f59e0b", display: "inline-block" }}></span>
-            Leave
-          </span>
-        </div>
-      </div>
-
-      <div className="calendar-container card" style={{ flex: 1, padding: "20px", minHeight: "600px" }}>
+        {/* Calendar Body */}
         {calendarView === "year" ? (
           <YearView
             year={selectedYear}
@@ -467,9 +739,13 @@ export default function CalendarPage() {
             events={events}
             startAccessor="start"
             endAccessor="end"
-            style={{ height: "100%" }}
+            style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "calc(100vh - 430px)", width: "100%" }}
+            length={30}
             eventPropGetter={eventStyleGetter}
+            dayPropGetter={dayPropGetter}
             date={currentDate}
+            toolbar={false}
+            formats={calendarFormats}
             onNavigate={(newDate) => {
               setCurrentDate(newDate);
               setSelectedYear(newDate.getFullYear());
@@ -480,6 +756,11 @@ export default function CalendarPage() {
             popup
             selectable
             onSelectEvent={(event) => setSelectedEvent(event)}
+            components={{
+              agenda: {
+                event: AgendaEventBadge
+              }
+            }}
           />
         )}
       </div>
@@ -495,6 +776,7 @@ export default function CalendarPage() {
         isOpen={!!selectedEvent}
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        onDeleteBlockedTime={handleDeleteBlockedTime}
       />
     </section>
   );
@@ -591,8 +873,9 @@ function YearView({ year, events, onSelectMonth, onSelectDate }) {
                   fontWeight: "700",
                   padding: "2px 7px",
                   borderRadius: "12px",
-                  background: "rgba(56, 189, 248, 0.15)",
-                  color: "#38bdf8"
+                  background: "var(--badge-blue-bg)",
+                  color: "var(--badge-blue-fg)",
+                  border: "1px solid var(--badge-blue-border)"
                 }}>
                   {m.eventCount} {m.eventCount === 1 ? "event" : "events"}
                 </span>
@@ -676,7 +959,7 @@ function YearView({ year, events, onSelectMonth, onSelectDate }) {
   );
 }
 
-function AppointmentDetailsModal({ isOpen, onClose, event }) {
+function AppointmentDetailsModal({ isOpen, onClose, event, onDeleteBlockedTime }) {
   if (!isOpen || !event) return null;
 
   const res = event.resource || {};
@@ -736,8 +1019,9 @@ function AppointmentDetailsModal({ isOpen, onClose, event }) {
               borderRadius: "6px",
               fontSize: "12px",
               fontWeight: "600",
-              background: isGoogle ? "rgba(192, 132, 252, 0.15)" : isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(56, 189, 248, 0.15)",
-              color: isGoogle ? "#c084fc" : isBlocked ? "#ef4444" : "#38bdf8",
+              background: isGoogle ? "var(--badge-google-bg)" : isBlocked ? "var(--danger-bg)" : "var(--badge-blue-bg)",
+              color: isGoogle ? "var(--badge-google-fg)" : isBlocked ? "var(--danger)" : "var(--badge-blue-fg)",
+              border: isGoogle ? "1px solid var(--badge-google-border)" : isBlocked ? "1px solid var(--danger-border)" : "1px solid var(--badge-blue-border)",
               marginBottom: "8px"
             }}>
               {isGoogle ? "🌐 Google Calendar Event" : isBlocked ? "⛔ Blocked Time Slot" : "📅 Booked Appointment"}
@@ -825,7 +1109,7 @@ function AppointmentDetailsModal({ isOpen, onClose, event }) {
             </div>
 
             {notes && (
-              <div style={{ gridColumn: "span 2", marginTop: "6px", background: "rgba(255,255,255,0.03)", padding: "10px", borderRadius: "6px", border: "1px solid var(--line, #27272a)" }}>
+              <div style={{ gridColumn: "span 2", marginTop: "6px", background: "var(--line-light)", padding: "10px", borderRadius: "6px", border: "1px solid var(--line)" }}>
                 <span style={{ color: "var(--muted, #94a3b8)", display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
                   Notes & Details
                 </span>
@@ -846,7 +1130,7 @@ function AppointmentDetailsModal({ isOpen, onClose, event }) {
               </span>
             </div>
             {res.description && (
-              <div style={{ background: "rgba(255,255,255,0.03)", padding: "10px", borderRadius: "6px", border: "1px solid var(--line, #27272a)" }}>
+              <div style={{ background: "var(--line-light)", padding: "10px", borderRadius: "6px", border: "1px solid var(--line)" }}>
                 <span style={{ color: "var(--muted, #94a3b8)", display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
                   Description
                 </span>
@@ -855,7 +1139,7 @@ function AppointmentDetailsModal({ isOpen, onClose, event }) {
             )}
             {res.htmlLink && (
               <div>
-                <a href={res.htmlLink} target="_blank" rel="noopener noreferrer" style={{ color: "#38bdf8", textDecoration: "underline", fontSize: "12px" }}>
+                <a href={res.htmlLink} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent, #38bdf8)", textDecoration: "underline", fontSize: "12px" }}>
                   Open in Google Calendar ↗
                 </a>
               </div>
@@ -867,17 +1151,54 @@ function AppointmentDetailsModal({ isOpen, onClose, event }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px", fontSize: "13px" }}>
             <div>
               <span style={{ color: "var(--muted, #94a3b8)", display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
+                Staff Member
+              </span>
+              <strong style={{ color: "var(--heading, #fff)" }}>{res.staff || "All Staff Members"}</strong>
+            </div>
+            <div>
+              <span style={{ color: "var(--muted, #94a3b8)", display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
                 Time Range
               </span>
               <span style={{ color: "var(--fg, #e2e8f0)" }}>
                 {moment(event.start).format("DD MMM YYYY, hh:mm A")} - {moment(event.end).format("hh:mm A")}
               </span>
             </div>
+            {res.reason && (
+              <div style={{ background: "var(--line-light)", padding: "10px", borderRadius: "6px", border: "1px solid var(--line)" }}>
+                <span style={{ color: "var(--muted, #94a3b8)", display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                  Reason / Notes
+                </span>
+                <span style={{ color: "var(--fg, #e2e8f0)", fontSize: "12px" }}>{res.reason}</span>
+              </div>
+            )}
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
-          <button className="btn primary" onClick={onClose} style={{ padding: "8px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "20px" }}>
+          {isBlocked && onDeleteBlockedTime && (
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => {
+                const bId = res.id || event.backendId;
+                if (window.confirm("Are you sure you want to unblock this calendar time slot?")) {
+                  onDeleteBlockedTime(bId);
+                }
+              }}
+              style={{
+                backgroundColor: "rgba(239, 68, 68, 0.15)",
+                color: "#ef4444",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                fontWeight: "600",
+                cursor: "pointer"
+              }}
+            >
+              🗑️ Delete Blocked Slot
+            </button>
+          )}
+          <button className="btn primary" onClick={onClose} style={{ padding: "8px 20px", marginLeft: "auto" }}>
             Close
           </button>
         </div>

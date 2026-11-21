@@ -5,15 +5,26 @@
    ========================================================================== */
 
 /* ─── Page Container & Ambient Base ───────────────────────────────────── */
+.content:has(#livecall) {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#livecall.livecall-page,
 .livecall-page {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  max-width: 1560px;
-  margin: 0 auto;
-  padding: 6px 4px 32px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 0 32px 0;
+  box-sizing: border-box;
   animation: livecallPageFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--fg, #f8fafc);
 }
@@ -130,6 +141,12 @@
   letter-spacing: 0.02em;
 }
 
+[data-theme="light"] .live-pill-badge {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
 .live-pill-badge.standby {
   background: rgba(148, 163, 184, 0.15);
   border-color: rgba(148, 163, 184, 0.3);
@@ -182,6 +199,35 @@
   color: #f8fafc;
   font-size: 12.5px;
   outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .livecall-org-select {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+/* ─── Barge Status Alert ──────────────────────────────────────────────── */
+.barge-status-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+[data-theme="light"] .barge-status-alert {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
   cursor: pointer;
 }
 
@@ -352,9 +398,10 @@
 /* ─── 2-Column Dashboard Grid Layout ──────────────────────────────────── */
 .livecall-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.56fr) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 24px;
   width: 100%;
+  box-sizing: border-box;
   align-items: start;
 }
 
@@ -363,6 +410,8 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .livecall-col-right {
@@ -370,6 +419,8 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* ─── 1. Main Live Call Card (Hero) ───────────────────────────────────── */
@@ -380,11 +431,13 @@
   min-height: 480px;
   background: radial-gradient(ellipse at 50% 0%, #0d1e3d 0%, #081329 55%, #050b18 100%);
   border: 1px solid rgba(19, 184, 255, 0.22);
+  box-sizing: border-box;
 }
 
 [data-theme="light"] .main-live-call-card {
   background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
   border-color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
 }
 
 .main-call-ambient-glow {
@@ -399,6 +452,10 @@
   filter: blur(45px);
   pointer-events: none;
   z-index: 0;
+}
+
+[data-theme="light"] .main-call-ambient-glow {
+  opacity: 0.3;
 }
 
 /* Top Row: Inbound Call Badge & Timer */
@@ -423,6 +480,12 @@
   font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.06em;
+}
+
+[data-theme="light"] .inbound-call-pill {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
 }
 
 .call-recording-timer-pill {
@@ -910,11 +973,23 @@
   box-shadow: 0 0 14px rgba(245, 158, 11, 0.3);
 }
 
+[data-theme="light"] .call-action-btn.active-hold {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
 .call-action-btn.active-mute {
   background: rgba(239, 68, 68, 0.15);
   border-color: #ef4444;
   color: #ef4444;
   box-shadow: 0 0 14px rgba(239, 68, 68, 0.3);
+}
+
+[data-theme="light"] .call-action-btn.active-mute {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #b91c1c;
 }
 
 .call-action-btn.btn-end-call {
@@ -987,6 +1062,12 @@
   color: #34d399;
   font-size: 11.5px;
   font-weight: 700;
+}
+
+[data-theme="light"] .realtime-pill {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
 }
 
 .conv-controls-right {
@@ -1097,12 +1178,14 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-height: 250px;
+  min-height: 220px;
+  max-height: 380px;
   overflow-y: auto;
-  padding: 6px 6px;
+  padding: 12px 10px 16px;
   position: relative;
   z-index: 2;
   box-sizing: border-box;
+  scroll-behavior: smooth;
 }
 
 .conversation-messages-scroll::-webkit-scrollbar {
@@ -1127,7 +1210,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  max-width: 82%;
+  max-width: 86%;
   width: auto;
   box-sizing: border-box;
   animation: dialogueBubbleFadeIn 0.2s ease-out;
@@ -1171,6 +1254,13 @@
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.35);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .dialogue-avatar.caller-avatar {
+  background: #f1f5f9;
+  color: #0284c7;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .dialogue-avatar.ai-avatar {
@@ -1239,13 +1329,25 @@
   color: #94a3b8;
 }
 
+[data-theme="light"] .dialogue-message-item.caller .bubble-speaker-label {
+  color: #475569;
+}
+
 .dialogue-message-item.ai .bubble-speaker-label {
   color: #c084fc;
+}
+
+[data-theme="light"] .dialogue-message-item.ai .bubble-speaker-label {
+  color: #7e22ce;
 }
 
 .bubble-time-stamp {
   font-size: 11px;
   color: #64748b;
+}
+
+[data-theme="light"] .bubble-time-stamp {
+  color: #94a3b8;
 }
 
 .bubble-text-content {
@@ -1378,7 +1480,7 @@
   gap: 8px;
   position: relative;
   z-index: 2;
-  max-width: 68%;
+  max-width: calc(100% - 135px);
 }
 
 .analysis-data-row {
@@ -1533,7 +1635,7 @@
   gap: 9px;
   position: relative;
   z-index: 2;
-  max-width: 68%;
+  max-width: calc(100% - 135px);
 }
 
 .stepper-item-row {
@@ -1547,6 +1649,11 @@
 
 [data-theme="light"] .stepper-item-row {
   color: #1e293b;
+}
+
+[data-theme="light"] .stepper-item-row.pending {
+  color: #64748b;
+  opacity: 0.7;
 }
 
 .stepper-check-circle {
@@ -1564,6 +1671,12 @@
   flex-shrink: 0;
 }
 
+[data-theme="light"] .stepper-check-circle {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+
 .stepper-idle-circle {
   width: 18px;
   height: 18px;
@@ -1576,10 +1689,19 @@
   flex-shrink: 0;
 }
 
+[data-theme="light"] .stepper-idle-circle {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
 .idle-inner-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
+  background: #94a3b8;
+}
+
+[data-theme="light"] .idle-inner-dot {
   background: #94a3b8;
 }
 
@@ -1599,6 +1721,11 @@
   flex-shrink: 0;
 }
 
+[data-theme="light"] .stepper-pulse-circle {
+  background: #eff6ff;
+  border-color: #0284c7;
+}
+
 .pulse-inner-ring {
   width: 6px;
   height: 6px;
@@ -1606,6 +1733,11 @@
   background: #13b8ff;
   box-shadow: 0 0 8px #13b8ff;
   animation: pulseDotSmall 1.5s infinite ease-in-out;
+}
+
+[data-theme="light"] .pulse-inner-ring {
+  background: #0284c7;
+  box-shadow: 0 0 6px rgba(2, 132, 199, 0.4);
 }
 
 @keyframes pulseDotSmall {
@@ -1616,6 +1748,10 @@
 .stepper-step-text.active-glow {
   color: #38bdf8;
   font-weight: 700;
+}
+
+[data-theme="light"] .stepper-step-text.active-glow {
+  color: #0284c7;
 }
 
 /* CARD 3: CALL DETAILS */
@@ -1662,6 +1798,12 @@
   font-weight: 700;
 }
 
+[data-theme="light"] .details-live-badge.live {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
 .details-live-badge.standby {
   background: rgba(148, 163, 184, 0.15);
   border-color: rgba(148, 163, 184, 0.3);
@@ -1700,6 +1842,11 @@
   border-color: rgba(19, 184, 255, 0.28);
 }
 
+[data-theme="light"] .detail-tile-box:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
 .detail-tile-icon-row {
   margin-bottom: 2px;
 }
@@ -1718,9 +1865,29 @@
   box-shadow: 0 0 8px #10b981;
 }
 
+[data-theme="light"] .status-solid-dot.live {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
 .status-solid-dot.completed {
   background: #3b82f6;
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+[data-theme="light"] .status-solid-dot.completed {
+  background: #2563eb;
+  box-shadow: 0 0 6px rgba(37, 99, 235, 0.35);
+}
+
+.status-solid-dot.idle {
+  background: #94a3b8;
+  box-shadow: none;
+}
+
+[data-theme="light"] .status-solid-dot.idle {
+  background: #94a3b8;
+  box-shadow: none;
 }
 
 .status-solid-dot.idle {
@@ -1903,18 +2070,21 @@
 }
 
 /* ─── Responsive Breakpoints ──────────────────────────────────────────── */
-@media (max-width: 1200px) {
+@media (max-width: 1366px) {
   .livecall-dashboard-grid {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 18px;
   }
   .main-call-actions-row {
-    grid-template-columns: repeat(3, 1fr) 1.2fr;
+    grid-template-columns: repeat(4, 1fr) 1.25fr;
+    gap: 8px;
   }
 }
 
 @media (max-width: 1024px) {
   .livecall-dashboard-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
   .analysis-rows-container,
   .state-stepper-container {
@@ -1922,7 +2092,7 @@
   }
   .ai-head-profile-container,
   .ai-robot-assistant-container {
-    opacity: 0.35;
+    opacity: 0.25;
   }
 }
 
@@ -1930,6 +2100,7 @@
   .livecall-top-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
   }
   .livecall-metrics-group {
     width: 100%;
@@ -1942,9 +2113,11 @@
   }
   .main-call-metadata-row {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
   .main-call-actions-row {
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
   .call-action-btn.btn-end-call {
     grid-column: span 2;
@@ -1986,5 +2159,12 @@
   }
   .details-2x2-grid {
     grid-template-columns: 1fr;
+  }
+  .main-call-actions-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .call-action-btn.btn-end-call {
+    grid-column: span 1;
   }
 }

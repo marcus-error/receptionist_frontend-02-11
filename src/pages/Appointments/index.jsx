@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Badge from "../../components/ui/Badge.jsx";
-import useApi from "../../hooks/useApi.js";
 import appointmentsService from "../../services/appointments.service.js";
 import AddAppointmentModal from "../../components/modals/AddAppointmentModal.jsx";
 
@@ -8,25 +7,123 @@ const STATUS_COLOR = { Confirmed: "green", Scheduled: "green", Pending: "yellow"
 const HOURS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
 const MINUTES = ["00", "15", "30", "45"];
 
+// Pagination number generator (e.g. 1 2 3 4 5 ... 15)
+const getPageNumbers = (current, total) => {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages = [];
+  if (current <= 4) {
+    for (let i = 1; i <= 5; i++) pages.push(i);
+    pages.push("...");
+    pages.push(total);
+  } else if (current >= total - 3) {
+    pages.push(1);
+    pages.push("...");
+    for (let i = total - 4; i <= total; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    pages.push("...");
+    pages.push(current - 1);
+    pages.push(current);
+    pages.push(current + 1);
+    pages.push("...");
+    pages.push(total);
+  }
+  return pages;
+};
+
 export default function Appointments() {
-  const { data: appointments, reload, loading } = useApi(
-    appointmentsService.getAll,
-    [],
-    []
-  );
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [totalAppointments, setTotalAppointments] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Filter States
   const [timeFilter, setTimeFilter] = useState("all"); // "all" | "today" | "weekly" | "monthly"
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search query by 300ms to avoid unnecessary API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch paginated appointments from backend API
+  const fetchAppointments = useCallback(
+    async (showLoading = true, targetPage = currentPage) => {
+      if (showLoading) setLoading(true);
+      try {
+        const params = {
+          page: targetPage,
+          limit: pageSize,
+          pageSize: pageSize,
+        };
+        if (statusFilter && statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+        if (timeFilter && timeFilter !== "all") {
+          params.time_filter = timeFilter;
+        }
+        if (debouncedSearch && debouncedSearch.trim()) {
+          params.search = debouncedSearch.trim();
+        }
+
+        const res = await appointmentsService.getAll(params);
+        if (res && res.data) {
+          const dataList = res.data || [];
+          const total = res.total !== undefined ? res.total : 0;
+          const pages = res.totalPages || res.total_pages || Math.max(1, Math.ceil(total / pageSize));
+          setTotalAppointments(total);
+          setTotalPages(pages);
+
+          // If current page is beyond totalPages (e.g. after deletion of records), step back
+          if (targetPage > pages && pages >= 1) {
+            setCurrentPage(pages);
+            return;
+          }
+
+          setAppointments(dataList);
+        } else if (Array.isArray(res)) {
+          // Fallback in case raw array is returned
+          setTotalAppointments(res.length);
+          const pages = Math.max(1, Math.ceil(res.length / pageSize));
+          setTotalPages(pages);
+          const start = (targetPage - 1) * pageSize;
+          setAppointments(res.slice(start, start + pageSize));
+        }
+      } catch (err) {
+        console.error("Failed to fetch appointments:", err);
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [currentPage, pageSize, statusFilter, timeFilter, debouncedSearch]
+  );
+
+  // When filters or debounced search change, reset page to 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, timeFilter]);
+
+  // Fetch appointments on page or filter change
+  useEffect(() => {
+    fetchAppointments(true, currentPage);
+  }, [currentPage, debouncedSearch, statusFilter, timeFilter, fetchAppointments]);
 
   // Auto-poll live appointments every 6 seconds so voice AI bookings appear automatically
   useEffect(() => {
     const interval = setInterval(() => {
-      reload();
+      fetchAppointments(false, currentPage);
     }, 6000);
     return () => clearInterval(interval);
-  }, [reload]);
+  }, [currentPage, debouncedSearch, statusFilter, timeFilter, fetchAppointments]);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -48,78 +145,10 @@ export default function Appointments() {
   // Cancel form state
   const [submittingCancel, setSubmittingCancel] = useState(false);
 
-  // Date Parser Helper for Filtering
-  const parseApptDate = (dateStr) => {
-    if (!dateStr) return null;
-    const parsed = new Date(dateStr);
-    if (!isNaN(parsed.getTime())) return parsed;
-    const parts = dateStr.trim().split(/\s+/);
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-      const month = monthNames.findIndex((m) => parts[1].toLowerCase().startsWith(m));
-      const year = parseInt(parts[2], 10);
-      if (!isNaN(day) && month !== -1 && !isNaN(year)) {
-        return new Date(year, month, day);
-      }
-    }
-    return null;
-  };
-
-  // Filter Logic
-  const filteredAppointments = appointments.filter((a) => {
-    // 1. Status Filter
-    if (statusFilter !== "all" && (a.status || "Pending").toLowerCase() !== statusFilter.toLowerCase()) {
-      return false;
-    }
-
-    // 2. Search Query Filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchCust = (a.customer || "").toLowerCase().includes(q);
-      const matchCustId = (a.customer_id || "").toLowerCase().includes(q);
-      const matchPhone = (a.phone || a.customer_phone || "").toLowerCase().includes(q);
-      const matchStaff = (a.staff || "").toLowerCase().includes(q);
-      const matchDept = (a.department || "").toLowerCase().includes(q);
-      const matchService = (a.service || a.service_name || "").toLowerCase().includes(q);
-      if (!matchCust && !matchCustId && !matchPhone && !matchStaff && !matchDept && !matchService) {
-        return false;
-      }
-    }
-
-    // 3. Time Period Filter (All, Today, Weekly, Monthly)
-    if (timeFilter !== "all") {
-      const apptDate = parseApptDate(a.appointment_date);
-      if (!apptDate) return true;
-
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-
-      if (timeFilter === "today") {
-        return apptDate >= todayStart && apptDate <= todayEnd;
-      }
-
-      if (timeFilter === "weekly") {
-        const diffTime = Math.abs(apptDate.getTime() - todayStart.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 7 || (apptDate.getMonth() === now.getMonth() && Math.abs(apptDate.getDate() - now.getDate()) <= 7);
-      }
-
-      if (timeFilter === "monthly") {
-        const diffTime = Math.abs(apptDate.getTime() - todayStart.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 30 || (apptDate.getMonth() === now.getMonth() && apptDate.getFullYear() === now.getFullYear());
-      }
-    }
-
-    return true;
-  });
-
   // Action Handlers
   const handleAdd = async (payload) => {
     await appointmentsService.create(payload);
-    reload();
+    fetchAppointments(true, 1);
   };
 
   const openReschedule = (appt) => {
@@ -165,7 +194,7 @@ export default function Appointments() {
         confirmation_status: "Confirmed"
       });
       setRescheduleAppt(null);
-      reload();
+      fetchAppointments(true, currentPage);
     } catch (err) {
       console.error("Failed to reschedule:", err);
       setRescheduleError("Failed to reschedule appointment. Please try again.");
@@ -184,7 +213,7 @@ export default function Appointments() {
       setSubmittingCancel(true);
       await appointmentsService.cancel(cancelAppt.id);
       setCancelAppt(null);
-      reload();
+      fetchAppointments(true, currentPage);
     } catch (err) {
       console.error("Failed to cancel appointment:", err);
       alert("Failed to cancel appointment. Please try again.");
@@ -239,7 +268,10 @@ export default function Appointments() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setTimeFilter(tab.id)}
+              onClick={() => {
+                setTimeFilter(tab.id);
+                setCurrentPage(1);
+              }}
               style={{
                 padding: "6px 14px",
                 borderRadius: "6px",
@@ -261,7 +293,10 @@ export default function Appointments() {
         <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             style={{
               padding: "8px 14px",
               borderRadius: "8px",
@@ -284,7 +319,10 @@ export default function Appointments() {
             type="text"
             placeholder="🔍 Search name, ID, phone, staff, service..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             style={{
               padding: "8px 14px",
               borderRadius: "8px",
@@ -319,7 +357,7 @@ export default function Appointments() {
             </tr>
           </thead>
           <tbody>
-            {filteredAppointments.map((a) => (
+            {appointments.map((a) => (
               <tr key={a.id}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
@@ -434,17 +472,17 @@ export default function Appointments() {
               </tr>
             ))}
 
-            {filteredAppointments.length === 0 && !loading && (
+            {!loading && appointments.length === 0 && (
               <tr>
                 <td colSpan="11" style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
-                  {appointments.length === 0
+                  {totalAppointments === 0 && !debouncedSearch && statusFilter === "all" && timeFilter === "all"
                     ? 'No appointments scheduled. Click "+ New Appointment" to create one.'
                     : 'No appointments match the selected filters.'}
                 </td>
               </tr>
             )}
 
-            {loading && (
+            {loading && appointments.length === 0 && (
               <tr>
                 <td colSpan="11" style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
                   Loading appointments...
@@ -453,6 +491,149 @@ export default function Appointments() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Pagination Controls ── */}
+      <div
+        className="appointments-pagination-bar"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "14px",
+          marginTop: "16px",
+          padding: "12px 18px",
+          background: "var(--panel-card, #0f172a)",
+          border: "1px solid var(--line, #334155)",
+          borderRadius: "var(--radius-lg, 12px)",
+          boxShadow: "var(--card-shadow, 0 1px 3px rgba(0,0,0,0.1))",
+        }}
+      >
+        {/* Left: Showing X–Y of Z appointments */}
+        <div style={{ fontSize: "13.5px", color: "var(--muted, #94a3b8)" }}>
+          {totalAppointments === 0 ? (
+            "Showing 0 appointments"
+          ) : (
+            <>
+              Showing{" "}
+              <strong style={{ color: "var(--heading, #ffffff)", fontWeight: 600 }}>
+                {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalAppointments)}
+              </strong>{" "}
+              of{" "}
+              <strong style={{ color: "var(--heading, #ffffff)", fontWeight: 600 }}>
+                {totalAppointments}
+              </strong>{" "}
+              appointments
+            </>
+          )}
+        </div>
+
+        {/* Right / Center: Pagination Navigation */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px",
+          }}
+        >
+          {/* Previous Button */}
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1 || loading}
+            style={{
+              padding: "6px 14px",
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: currentPage <= 1 || loading ? "not-allowed" : "pointer",
+              opacity: currentPage <= 1 || loading ? 0.5 : 1,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              borderRadius: "6px",
+            }}
+          >
+            ← Previous
+          </button>
+
+          {/* Numbered Page Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            {getPageNumbers(currentPage, totalPages).map((p, idx) =>
+              p === "..." ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  style={{
+                    padding: "0 6px",
+                    color: "var(--muted, #94a3b8)",
+                    fontSize: "13px",
+                    userSelect: "none",
+                  }}
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={`page-${p}`}
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setCurrentPage(p)}
+                  disabled={loading}
+                  style={{
+                    minWidth: "34px",
+                    height: "32px",
+                    padding: "0 8px",
+                    fontSize: "13px",
+                    fontWeight: currentPage === p ? 700 : 500,
+                    background: currentPage === p ? "var(--primary, #0284c7)" : "transparent",
+                    color: currentPage === p ? "#ffffff" : "var(--fg, #e2e8f0)",
+                    borderColor: currentPage === p ? "var(--primary, #0284c7)" : "var(--line, #334155)",
+                    borderRadius: "6px",
+                    cursor: loading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {p}
+                </button>
+              )
+            )}
+          </div>
+
+          {/* Page indicator: Page X of Y */}
+          <span
+            style={{
+              fontSize: "13px",
+              color: "var(--muted, #94a3b8)",
+              margin: "0 6px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Page <strong style={{ color: "var(--heading, #ffffff)" }}>{currentPage}</strong> of{" "}
+            <strong style={{ color: "var(--heading, #ffffff)" }}>{totalPages}</strong>
+          </span>
+
+          {/* Next Button */}
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages || loading}
+            style={{
+              padding: "6px 14px",
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: currentPage >= totalPages || loading ? "not-allowed" : "pointer",
+              opacity: currentPage >= totalPages || loading ? 0.5 : 1,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              borderRadius: "6px",
+            }}
+          >
+            Next →
+          </button>
+        </div>
       </div>
 
       {/* ── 1. Reschedule Modal ── */}

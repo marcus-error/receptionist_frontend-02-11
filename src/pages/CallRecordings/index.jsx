@@ -1,6 +1,32 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import api from "../../services/api";
 import Badge from "../../components/ui/Badge";
+
+// Helper function for smart windowed pagination (e.g. 1 2 3 4 5 ... 20)
+const getPageNumbers = (current, total) => {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages = [];
+  if (current <= 4) {
+    for (let i = 1; i <= 5; i++) pages.push(i);
+    pages.push("...");
+    pages.push(total);
+  } else if (current >= total - 3) {
+    pages.push(1);
+    pages.push("...");
+    for (let i = total - 4; i <= total; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    pages.push("...");
+    pages.push(current - 1);
+    pages.push(current);
+    pages.push(current + 1);
+    pages.push("...");
+    pages.push(total);
+  }
+  return pages;
+};
 
 export default function CallRecordings() {
   const [recordings, setRecordings] = useState([]);
@@ -13,6 +39,13 @@ export default function CallRecordings() {
   const [search, setSearch] = useState("");
   const [downloadingZip, setDownloadingZip] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalRecordings, setTotalRecordings] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 10;
+  const [tabCounts, setTabCounts] = useState({ all: 0, inbound: 0, outbound: 0 });
+
   // Real Audio player states
   const [activeRecording, setActiveRecording] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,45 +56,62 @@ export default function CallRecordings() {
   // Modal detail view state
   const [viewDetailModal, setViewDetailModal] = useState(null);
 
+  const fetchRecordings = useCallback(
+    async (silent = false, targetPage = currentPage) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        let url = `/recordings?period=${period}&page=${targetPage}&limit=${pageSize}&pageSize=${pageSize}`;
+        if (callTypeFilter && callTypeFilter !== "all") {
+          url += `&call_type=${callTypeFilter}`;
+        }
+        if (period === "custom" && startDate && endDate) {
+          url += `&start_date=${startDate}&end_date=${endDate}`;
+        }
+        if (search.trim()) {
+          url += `&search=${encodeURIComponent(search.trim())}`;
+        }
+        const res = await api.get(url);
+        const data = res.data || {};
+        const results = Array.isArray(data) ? data : (data.results || data.data || []);
+        const total = typeof data.total === "number" ? data.total : results.length;
+        const pages = typeof data.totalPages === "number" ? data.totalPages : (typeof data.total_pages === "number" ? data.total_pages : Math.max(1, Math.ceil(total / pageSize)));
+
+        setRecordings(results);
+        setTotalRecordings(total);
+        setTotalPages(pages);
+        if (data.counts) {
+          setTabCounts(data.counts);
+        }
+        if (targetPage > pages && pages >= 1) {
+          setCurrentPage(pages);
+        }
+      } catch (err) {
+        console.error("Failed to fetch call recordings", err);
+        setError(err.response?.data?.detail || err.message || "Failed to load call recordings from server.");
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [period, callTypeFilter, search, startDate, endDate, currentPage, pageSize]
+  );
+
   useEffect(() => {
-    fetchRecordings();
-  }, [period, callTypeFilter]);
+    fetchRecordings(false, currentPage);
+  }, [currentPage, period, callTypeFilter]);
 
   // Auto refresh interval (every 30 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchRecordings(true); // silent fetch
+      fetchRecordings(true, currentPage); // silent fetch preserving current page
     }, 30000);
     return () => clearInterval(interval);
-  }, [period, callTypeFilter, search, startDate, endDate]);
-
-  const fetchRecordings = async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      let url = `/recordings?period=${period}`;
-      if (callTypeFilter && callTypeFilter !== "all") {
-        url += `&call_type=${callTypeFilter}`;
-      }
-      if (period === "custom" && startDate && endDate) {
-        url += `&start_date=${startDate}&end_date=${endDate}`;
-      }
-      if (search.trim()) {
-        url += `&search=${encodeURIComponent(search.trim())}`;
-      }
-      const res = await api.get(url);
-      setRecordings(res.data || []);
-    } catch (err) {
-      console.error("Failed to fetch call recordings", err);
-      setError(err.response?.data?.detail || err.message || "Failed to load call recordings from server.");
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
+  }, [period, callTypeFilter, search, startDate, endDate, currentPage, fetchRecordings]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchRecordings();
+    setCurrentPage(1);
+    fetchRecordings(false, 1);
   };
 
   const handleBulkDownload = async () => {
@@ -197,7 +247,7 @@ export default function CallRecordings() {
         </div>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <button onClick={() => fetchRecordings()} title="Refresh list" className="btn">
+          <button onClick={() => fetchRecordings(false, currentPage)} title="Refresh list" className="btn">
             🔄 Refresh
           </button>
 
@@ -220,7 +270,10 @@ export default function CallRecordings() {
         <div style={{ display: "flex", gap: "10px", marginBottom: "16px", borderBottom: "1px solid var(--line)", paddingBottom: "14px" }}>
           <button
             type="button"
-            onClick={() => setCallTypeFilter("all")}
+            onClick={() => {
+              setCallTypeFilter("all");
+              setCurrentPage(1);
+            }}
             style={{
               padding: "8px 18px",
               borderRadius: "20px",
@@ -233,12 +286,15 @@ export default function CallRecordings() {
               transition: "all 0.2s ease"
             }}
           >
-            📞 All Calls ({recordings.length})
+            📞 All Calls ({tabCounts.all ?? (callTypeFilter === "all" ? totalRecordings : 0)})
           </button>
 
           <button
             type="button"
-            onClick={() => setCallTypeFilter("inbound")}
+            onClick={() => {
+              setCallTypeFilter("inbound");
+              setCurrentPage(1);
+            }}
             style={{
               padding: "8px 18px",
               borderRadius: "20px",
@@ -251,12 +307,15 @@ export default function CallRecordings() {
               transition: "all 0.2s ease"
             }}
           >
-            📥 Inbound Calls ({inboundCount})
+            📥 Inbound Calls ({tabCounts.inbound ?? 0})
           </button>
 
           <button
             type="button"
-            onClick={() => setCallTypeFilter("outbound")}
+            onClick={() => {
+              setCallTypeFilter("outbound");
+              setCurrentPage(1);
+            }}
             style={{
               padding: "8px 18px",
               borderRadius: "20px",
@@ -269,7 +328,7 @@ export default function CallRecordings() {
               transition: "all 0.2s ease"
             }}
           >
-            📤 Outbound Calls ({outboundCount})
+            📤 Outbound Calls ({tabCounts.outbound ?? 0})
           </button>
         </div>
 
@@ -288,7 +347,10 @@ export default function CallRecordings() {
             </label>
             <select
               value={period}
-              onChange={(e) => setPeriod(e.target.value)}
+              onChange={(e) => {
+                setPeriod(e.target.value);
+                setCurrentPage(1);
+              }}
               style={{
                 padding: "9px 14px",
                 borderRadius: "var(--radius-md)",
@@ -339,7 +401,13 @@ export default function CallRecordings() {
                     fontSize: "13px"
                   }}
                 />
-                <button onClick={() => fetchRecordings()} className="btn primary btn-sm">
+                <button
+                  onClick={() => {
+                    setCurrentPage(1);
+                    fetchRecordings(false, 1);
+                  }}
+                  className="btn primary btn-sm"
+                >
                   Apply
                 </button>
               </div>
@@ -369,7 +437,7 @@ export default function CallRecordings() {
                   type="button"
                   onClick={() => {
                     setSearch("");
-                    fetchRecordings();
+                    setCurrentPage(1);
                   }}
                   style={{
                     position: "absolute",
@@ -561,7 +629,8 @@ export default function CallRecordings() {
           </p>
         </div>
       ) : (
-        <div className="table">
+        <>
+          <div className="table">
           <table>
             <thead>
               <tr>
@@ -696,7 +765,153 @@ export default function CallRecordings() {
             </tbody>
           </table>
         </div>
-      )}
+
+        {/* Pagination Controls */}
+        {totalRecordings > 0 && recordings.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "12px",
+              padding: "16px 20px",
+              borderTop: "1px solid var(--line)",
+              background: "var(--panel)",
+              borderRadius: "0 0 var(--radius-lg, 12px) var(--radius-lg, 12px)",
+              marginTop: "-8px",
+              marginBottom: "24px",
+              boxShadow: "var(--card-shadow, 0 1px 3px rgba(0,0,0,0.1))",
+            }}
+          >
+            {/* Left: Showing X–Y of Z recordings */}
+            <div style={{ fontSize: "13.5px", color: "var(--muted, #94a3b8)" }}>
+              {totalRecordings === 0 ? (
+                "Showing 0 recordings"
+              ) : (
+                <>
+                  Showing{" "}
+                  <strong style={{ color: "var(--heading, #ffffff)", fontWeight: 600 }}>
+                    {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalRecordings)}
+                  </strong>{" "}
+                  of{" "}
+                  <strong style={{ color: "var(--heading, #ffffff)", fontWeight: 600 }}>
+                    {totalRecordings}
+                  </strong>{" "}
+                  recordings
+                </>
+              )}
+            </div>
+
+            {/* Right / Center: Pagination Navigation */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}
+            >
+              {/* Previous Button */}
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1 || loading}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: currentPage <= 1 || loading ? "not-allowed" : "pointer",
+                  opacity: currentPage <= 1 || loading ? 0.5 : 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  borderRadius: "6px",
+                }}
+              >
+                ← Previous
+              </button>
+
+              {/* Numbered Page Buttons */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                {getPageNumbers(currentPage, totalPages).map((p, idx) =>
+                  p === "..." ? (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      style={{
+                        padding: "0 6px",
+                        color: "var(--muted, #94a3b8)",
+                        fontSize: "13px",
+                        userSelect: "none",
+                      }}
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={`page-${p}`}
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => setCurrentPage(p)}
+                      disabled={loading}
+                      style={{
+                        minWidth: "34px",
+                        height: "32px",
+                        padding: "0 8px",
+                        fontSize: "13px",
+                        fontWeight: currentPage === p ? 700 : 500,
+                        background: currentPage === p ? "var(--primary, #0284c7)" : "transparent",
+                        color: currentPage === p ? "#ffffff" : "var(--fg, #e2e8f0)",
+                        borderColor: currentPage === p ? "var(--primary, #0284c7)" : "var(--line, #334155)",
+                        borderRadius: "6px",
+                        cursor: loading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Page indicator: Page X of Y */}
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "var(--muted, #94a3b8)",
+                  margin: "0 6px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Page <strong style={{ color: "var(--heading, #ffffff)" }}>{currentPage}</strong> of{" "}
+                <strong style={{ color: "var(--heading, #ffffff)" }}>{totalPages}</strong>
+              </span>
+
+              {/* Next Button */}
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages || loading}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: currentPage >= totalPages || loading ? "not-allowed" : "pointer",
+                  opacity: currentPage >= totalPages || loading ? 0.5 : 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  borderRadius: "6px",
+                }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )}
 
       {/* Call Detail & Transcript Modal */}
       {viewDetailModal && (

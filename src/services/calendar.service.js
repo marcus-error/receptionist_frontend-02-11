@@ -125,3 +125,32 @@ export const getStaffSlots = async (staffId, selectedDate, service = null) => {
   const response = await api.get(`/availability/${staffId}/slots`, { params });
   return response.data;
 };
+
+// ------------------------------------------------------------------ //
+// Blocked Time Slots                                                 //
+// ------------------------------------------------------------------ //
+
+/**
+ * Fetch persisted blocked calendar times from the backend.
+ * @param {object} params - { staff_id, start_date, end_date }
+ */
+export const getBlockedTimes = async (params = {}) => {
+  const response = await api.get("/calendar/blocked-time", { params });
+  return response.data;
+};
+
+export const createBlockedTime = async (data) => {
+  const response = await api.post("/calendar/blocked-time", data);
+  return response.data;
+};
+
+export const updateBlockedTime = async (id, data) => {
+  const response = await api.put(`/calendar/blocked-time/${id}`, data);
+  return response.data;
+};
+
+export const deleteBlockedTime = async (id) => {
+  const response = await api.delete(`/calendar/blocked-time/${id}`);
+  return response.data;
+};
+
